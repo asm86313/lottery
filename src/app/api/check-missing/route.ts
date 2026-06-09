@@ -1,15 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { fetchLatestDrawNo } from "@/lib/lotteryApi";
 import { getMaxDrawNo } from "@/lib/lotteryDb";
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const untilDraw = searchParams.get("until")
-    ? Number(searchParams.get("until"))
-    : undefined;
-
+export async function GET() {
   try {
-    const latestDrawNo = untilDraw ?? (await fetchLatestDrawNo());
+    const latestDrawNo = fetchLatestDrawNo();
     const maxInDb = await getMaxDrawNo();
 
     const missing: number[] = [];

@@ -63,10 +63,10 @@ export async function getDrawsFromDb(
   let query = supabaseAdmin
     .from("lottery_draws")
     .select("*")
-    .order("drw_no", { ascending: false }); // 최신순으로 받아서 limit 적용
+    .order("drw_no", { ascending: false })
+    .limit(limit ?? 10000); // Supabase 기본 1000행 제한 우회
 
   if (fromDrawNo) query = query.lte("drw_no", fromDrawNo);
-  if (limit)      query = query.limit(limit);
 
   const { data, error } = await query;
   if (error || !data) return [];

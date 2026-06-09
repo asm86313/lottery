@@ -1,20 +1,8 @@
-import { NextRequest } from "next/server";
-import { fetchDrawWithStatus, fetchLatestDrawNo } from "@/lib/lotteryApi";
 import { analyzeDraws } from "@/lib/analysis";
-import { getMaxDrawNo, getDrawsFromDb, upsertDraws } from "@/lib/lotteryDb";
-import { LotteryDraw } from "@/types/lottery";
+import { getMaxDrawNo, getDrawsFromDb } from "@/lib/lotteryDb";
+import { fetchLatestDrawNo } from "@/lib/lotteryApi";
 
-const REQUEST_DELAY_MS = 200;
-const DB_FLUSH_INTERVAL = 50;
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const skipFetch = searchParams.get("skipFetch") === "true";
-
+export async function GET() {
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -24,51 +12,6 @@ export async function GET(request: NextRequest) {
       };
 
       try {
-        const latestDrawNo = await fetchLatestDrawNo();
-        const maxInDb = await getMaxDrawNo();
-
-        const missingFrom = maxInDb + 1;
-        const missingCount = latestDrawNo - maxInDb;
-
-        if (missingCount > 0 && !skipFetch) {
-          let buffer: LotteryDraw[] = [];
-
-          for (let drawNo = missingFrom; drawNo <= latestDrawNo; drawNo++) {
-            send({ type: "progress", message: `${drawNo}회 데이터 가져오는 중...` });
-
-            const result = await fetchDrawWithStatus(drawNo);
-            if (result.status === "ok") {
-              const { draw } = result;
-              const nums = [draw.drwtNo1, draw.drwtNo2, draw.drwtNo3, draw.drwtNo4, draw.drwtNo5, draw.drwtNo6].join(", ");
-              const msg = `[${draw.drwNo}회] ${nums} | 보너스 ${draw.bnusNo}`;
-              console.log(`[fetch] ${msg}`);
-              send({ type: "log", message: msg });
-              buffer.push(draw);
-            } else if (result.status === "not_found") {
-              const msg = `[${drawNo}회] 아직 추첨 전 (skip)`;
-              console.log(`[fetch] ${msg}`);
-              send({ type: "log", message: msg });
-            } else {
-              const msg = `[${drawNo}회] 네트워크 오류 (skip): ${result.reason}`;
-              console.log(`[fetch] ${msg}`);
-              send({ type: "log", message: msg });
-            }
-
-            if (buffer.length >= DB_FLUSH_INTERVAL || drawNo === latestDrawNo) {
-              if (buffer.length > 0) {
-                send({ type: "progress", message: `DB에 저장 중... (${buffer[0].drwNo}~${buffer[buffer.length - 1].drwNo}회)` });
-                await upsertDraws(buffer);
-                const saved = `DB 저장 완료: ${buffer[0].drwNo}~${buffer[buffer.length - 1].drwNo}회 (${buffer.length}개)`;
-                console.log(`[db] ${saved}`);
-                send({ type: "log", message: saved });
-              }
-              buffer = [];
-            }
-
-            if (drawNo < latestDrawNo) await sleep(REQUEST_DELAY_MS);
-          }
-        }
-
         send({ type: "progress", message: "분석 중..." });
 
         const draws = await getDrawsFromDb();
@@ -81,6 +24,7 @@ export async function GET(request: NextRequest) {
 
         const result = analyzeDraws(draws);
         const savedInDb = await getMaxDrawNo();
+        const latestDrawNo = fetchLatestDrawNo();
 
         send({
           type: "result",
@@ -90,7 +34,7 @@ export async function GET(request: NextRequest) {
             latestDrawNo,
             savedInDb,
             analyzedCount: draws.length,
-            newlyFetched: missingCount > 0 ? missingCount : 0,
+            newlyFetched: 0,
           },
         });
       } catch (error) {

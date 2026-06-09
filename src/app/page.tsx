@@ -16,27 +16,179 @@ interface MissingInfo {
   latestDrawNo: number;
 }
 
-function describeMissing(nos: number[]): string {
-  if (nos.length === 0) return "";
-  if (nos.length <= 20) return nos.join(", ") + "회";
+// 누락 회차 수동 입력 모달
+function ManualEntryModal({
+  missingDrawNos,
+  onSaved,
+  onDone,
+}: {
+  missingDrawNos: number[];
+  onSaved: (drawNo: number) => void;
+  onDone: () => void;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [nums, setNums] = useState(["", "", "", "", "", ""]);
+  const [bonus, setBonus] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Set<number>>(new Set());
 
-  // 연속 구간으로 묶어서 표시
-  const ranges: string[] = [];
-  let start = nos[0];
-  let end = nos[0];
-  for (let i = 1; i < nos.length; i++) {
-    if (nos[i] === end + 1) {
-      end = nos[i];
-    } else {
-      ranges.push(start === end ? `${start}회` : `${start}~${end}회`);
-      start = nos[i];
-      end = nos[i];
+  const drawNo = missingDrawNos[idx];
+  const total = missingDrawNos.length;
+
+  function reset() {
+    setNums(["", "", "", "", "", ""]);
+    setBonus("");
+    setErr(null);
+  }
+
+  async function handleSave() {
+    const parsed = nums.map(Number);
+    const bonusNum = Number(bonus);
+
+    if (parsed.some((n) => isNaN(n) || n < 1 || n > 45)) {
+      setErr("번호는 1~45 사이 숫자를 입력하세요.");
+      return;
+    }
+    if (isNaN(bonusNum) || bonusNum < 1 || bonusNum > 45) {
+      setErr("보너스 번호는 1~45 사이 숫자를 입력하세요.");
+      return;
+    }
+    if (new Set([...parsed, bonusNum]).size !== 7) {
+      setErr("중복 번호가 있습니다.");
+      return;
+    }
+
+    setSaving(true);
+    setErr(null);
+    try {
+      const sorted = [...parsed].sort((a, b) => a - b);
+      const res = await fetch("/api/save-draws", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draws: [{
+            drwNo: drawNo,
+            drwtNo1: sorted[0], drwtNo2: sorted[1], drwtNo3: sorted[2],
+            drwtNo4: sorted[3], drwtNo5: sorted[4], drwtNo6: sorted[5],
+            bnusNo: bonusNum,
+          }],
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+
+      setSaved((prev) => new Set(prev).add(drawNo));
+      onSaved(drawNo);
+      reset();
+      if (idx < total - 1) setIdx(idx + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "저장 실패");
+    } finally {
+      setSaving(false);
     }
   }
-  ranges.push(start === end ? `${start}회` : `${start}~${end}회`);
 
-  if (ranges.length <= 6) return ranges.join(", ");
-  return ranges.slice(0, 5).join(", ") + ` 외 ${ranges.length - 5}개 구간`;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-gray-800">누락 회차 입력</h2>
+          <span className="text-sm text-gray-400">{idx + 1} / {total}</span>
+        </div>
+
+        {/* 진행 바 */}
+        <div className="w-full bg-gray-100 rounded-full h-1.5">
+          <div
+            className="bg-indigo-500 h-1.5 rounded-full transition-all"
+            style={{ width: `${((saved.size) / total) * 100}%` }}
+          />
+        </div>
+
+        {/* 회차 목록 */}
+        <div className="flex gap-1 flex-wrap max-h-20 overflow-y-auto">
+          {missingDrawNos.map((no, i) => (
+            <button
+              key={no}
+              onClick={() => { setIdx(i); reset(); }}
+              className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                saved.has(no)
+                  ? "bg-green-100 border-green-300 text-green-700"
+                  : i === idx
+                  ? "bg-indigo-600 border-indigo-600 text-white"
+                  : "border-gray-200 text-gray-500 hover:border-indigo-300"
+              }`}
+            >
+              {no}회
+            </button>
+          ))}
+        </div>
+
+        {/* 현재 회차 입력 */}
+        <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-700">
+            {drawNo}회 당첨번호 입력
+          </p>
+          <div className="flex gap-1">
+            {nums.map((v, i) => (
+              <input
+                key={i}
+                type="number"
+                min={1}
+                max={45}
+                value={v}
+                onChange={(e) => {
+                  const next = [...nums];
+                  next[i] = e.target.value;
+                  setNums(next);
+                }}
+                placeholder={String(i + 1)}
+                className="w-full border border-gray-200 rounded-lg text-center text-sm py-2 focus:outline-none focus:border-indigo-400 [appearance:textfield]"
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 shrink-0">보너스</span>
+            <input
+              type="number"
+              min={1}
+              max={45}
+              value={bonus}
+              onChange={(e) => setBonus(e.target.value)}
+              placeholder="보너스"
+              className="w-24 border border-yellow-300 rounded-lg text-center text-sm py-2 focus:outline-none focus:border-yellow-400 [appearance:textfield]"
+            />
+          </div>
+          {err && <p className="text-xs text-red-500">{err}</p>}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
+          >
+            {saving ? "저장 중..." : "저장"}
+          </button>
+          {idx < total - 1 && (
+            <button
+              onClick={() => { setIdx(idx + 1); reset(); }}
+              className="px-4 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded-xl text-sm transition-colors"
+            >
+              건너뛰기 →
+            </button>
+          )}
+        </div>
+
+        <button
+          onClick={onDone}
+          className="text-sm text-gray-400 hover:text-gray-600 text-center"
+        >
+          {saved.size > 0 ? `${saved.size}개 저장 완료 → 분석 시작` : "DB만 분석하기"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -46,25 +198,16 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("recommend");
   const [progress, setProgress] = useState("");
-  const [logs, setLogs] = useState<string[]>([]);
   const [missingModal, setMissingModal] = useState<MissingInfo | null>(null);
 
-  const doAnalysis = useCallback(async (skipFetch: boolean, upToDrawNo?: number) => {
+  const doAnalysis = useCallback(async () => {
     setMissingModal(null);
     setLoading(true);
     setError(null);
-    setLogs([]);
-    setProgress(
-      upToDrawNo
-        ? `${upToDrawNo}회차까지 분석 중...`
-        : skipFetch ? "DB 데이터 분석 중..." : "데이터 수집 및 분석 중..."
-    );
+    setProgress("분석 중...");
 
     try {
-      const params = new URLSearchParams();
-      if (skipFetch) params.set("skipFetch", "true");
-
-      const res = await fetch(`/api/analyze?${params}`);
+      const res = await fetch("/api/analyze");
       if (!res.ok || !res.body) throw new Error("요청 실패");
 
       const reader = res.body.getReader();
@@ -85,13 +228,10 @@ export default function Home() {
 
           if (event.type === "progress") {
             setProgress(event.message);
-          } else if (event.type === "log") {
-            setLogs((prev) => [...prev, event.message]);
           } else if (event.type === "result") {
             setData(event.data);
             setMeta(event.meta ?? null);
             setProgress("");
-            setLogs([]);
           } else if (event.type === "error") {
             throw new Error(event.error);
           }
@@ -115,24 +255,21 @@ export default function Home() {
 
       if (!json.success) throw new Error(json.error ?? "DB 확인 실패");
 
+      setLoading(false);
+      setProgress("");
+
       if (json.missingDrawNos.length > 0) {
-        setLoading(false);
-        setProgress("");
         setMissingModal({ missingDrawNos: json.missingDrawNos, latestDrawNo: json.latestDrawNo });
         return;
       }
 
-      setLoading(false);
-      setProgress("");
-      doAnalysis(false, json.storedCount);
-      return;
+      doAnalysis();
     } catch (e) {
       console.warn("check-missing 실패:", e);
+      setLoading(false);
+      setProgress("");
+      doAnalysis();
     }
-
-    setLoading(false);
-    setProgress("");
-    doAnalysis(false);
   }, [doAnalysis]);
 
   const tabs: { key: Tab; label: string }[] = [
@@ -158,12 +295,9 @@ export default function Home() {
             {meta && (
               <span className="text-xs text-gray-400 hidden sm:block">
                 DB {meta.savedInDb}회 · 분석 {meta.analyzedCount}회
-                {meta.newlyFetched > 0 && (
-                  <span className="ml-1 text-green-600 font-medium">+{meta.newlyFetched} 신규</span>
-                )}
               </span>
             )}
-<button
+            <button
               onClick={() => startAnalysis()}
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -174,49 +308,18 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 누락 회차 확인 모달 */}
+      {/* 누락 회차 수동 입력 모달 */}
       {missingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">⚠️</span>
-              <h2 className="text-base font-bold text-gray-800">DB에 없는 회차 발견</h2>
-            </div>
-
-            <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700">
-              <p className="font-semibold text-gray-900 mb-2">
-                누락 회차 <span className="text-indigo-600">{missingModal.missingDrawNos.length}개</span>
-              </p>
-              <p className="text-gray-500 leading-relaxed break-words">
-                {describeMissing(missingModal.missingDrawNos)}
-              </p>
-            </div>
-
-            <p className="text-sm text-gray-700">
-              동행복권에서 누락된 회차 데이터를 가져오시겠습니까?
-            </p>
-
-            <div className="flex gap-2 mt-1">
-              <button
-                onClick={() => doAnalysis(false, missingModal.latestDrawNo)}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors"
-              >
-                확인 (가져오기)
-              </button>
-              <button
-                onClick={() => doAnalysis(true, missingModal.missingDrawNos[0] - 1)}
-                className="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-600 py-2.5 rounded-xl font-semibold text-sm transition-colors"
-              >
-                취소 (DB만 분석)
-              </button>
-            </div>
-          </div>
-        </div>
+        <ManualEntryModal
+          missingDrawNos={missingModal.missingDrawNos}
+          onSaved={() => {}}
+          onDone={doAnalysis}
+        />
       )}
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* 초기 상태 */}
-        {!data && !loading && !error && (
+        {!data && !loading && !error && !missingModal && (
           <div className="flex flex-col items-center gap-8 py-12">
             <div className="text-center">
               <div className="text-6xl mb-3">🎱</div>
@@ -245,13 +348,6 @@ export default function Home() {
           <div className="flex flex-col items-center justify-center py-12 gap-4">
             <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
             <p className="text-gray-600 font-medium">{progress || "분석 중..."}</p>
-            {logs.length > 0 && (
-              <div className="w-full max-w-lg bg-gray-900 rounded-xl p-4 max-h-64 overflow-y-auto font-mono text-xs text-green-400 flex flex-col gap-1">
-                {logs.map((log, i) => (
-                  <span key={i}>{log}</span>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -260,7 +356,7 @@ export default function Home() {
           <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
             <p className="text-red-600 font-medium">⚠️ {error}</p>
             <button
-              onClick={() => startAnalysis()}
+              onClick={() => { setError(null); startAnalysis(); }}
               className="mt-3 text-sm text-red-500 underline"
             >
               다시 시도
@@ -293,7 +389,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* 탭 콘텐츠 */}
             {tab === "recommend" && (
               <div className="flex flex-col gap-6">
                 <HotColdPanel
