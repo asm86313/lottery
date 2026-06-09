@@ -34,11 +34,16 @@ export async function fetchDraw(drawNo: number): Promise<LotteryDraw | null> {
 }
 
 export async function fetchLatestDrawNo(): Promise<number> {
-  // 1회 시작일: 2002-12-07 기준으로 현재까지 회차 계산
+  // 날짜 기반 상한 추정 (실제보다 최대 2회 앞설 수 있음)
   const start = new Date("2002-12-07");
   const now = new Date();
-  const weeks = Math.floor(
-    (now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)
-  );
-  return weeks + 1;
+  const estimated =
+    Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
+  // 추정치부터 내려오며 실제로 존재하는 최신 회차 탐색
+  for (let no = estimated; no >= estimated - 3; no--) {
+    const draw = await fetchDraw(no);
+    if (draw) return no;
+  }
+  return estimated;
 }
