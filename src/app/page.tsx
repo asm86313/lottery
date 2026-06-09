@@ -46,12 +46,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("recommend");
   const [progress, setProgress] = useState("");
+  const [logs, setLogs] = useState<string[]>([]);
   const [missingModal, setMissingModal] = useState<MissingInfo | null>(null);
 
   const doAnalysis = useCallback(async (skipFetch: boolean, upToDrawNo?: number) => {
     setMissingModal(null);
     setLoading(true);
     setError(null);
+    setLogs([]);
     setProgress(
       upToDrawNo
         ? `${upToDrawNo}회차까지 분석 중...`
@@ -63,13 +65,38 @@ export default function Home() {
       if (skipFetch) params.set("skipFetch", "true");
 
       const res = await fetch(`/api/analyze?${params}`);
-      const json = await res.json();
+      if (!res.ok || !res.body) throw new Error("요청 실패");
 
-      if (!json.success) throw new Error(json.error ?? "분석 실패");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
 
-      setData(json.data);
-      setMeta(json.meta ?? null);
-      setProgress("");
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const event = JSON.parse(line.slice(6));
+
+          if (event.type === "progress") {
+            setProgress(event.message);
+          } else if (event.type === "log") {
+            setLogs((prev) => [...prev, event.message]);
+          } else if (event.type === "result") {
+            setData(event.data);
+            setMeta(event.meta ?? null);
+            setProgress("");
+            setLogs([]);
+          } else if (event.type === "error") {
+            throw new Error(event.error);
+          }
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "알 수 없는 오류");
       setProgress("");
@@ -215,12 +242,16 @@ export default function Home() {
 
         {/* 로딩 */}
         {loading && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
             <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
             <p className="text-gray-600 font-medium">{progress || "분석 중..."}</p>
-            <p className="text-gray-400 text-sm">
-              전체 회차 데이터를 가져오는 중입니다. 잠시만 기다려주세요.
-            </p>
+            {logs.length > 0 && (
+              <div className="w-full max-w-lg bg-gray-900 rounded-xl p-4 max-h-64 overflow-y-auto font-mono text-xs text-green-400 flex flex-col gap-1">
+                {logs.map((log, i) => (
+                  <span key={i}>{log}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
