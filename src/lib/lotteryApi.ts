@@ -16,29 +16,39 @@ export type FetchDrawResult =
   | { status: "error"; reason: string }; // 네트워크/파싱 오류
 
 export async function fetchDrawWithStatus(drawNo: number): Promise<FetchDrawResult> {
+  let res: Response;
   try {
-    const res = await fetch(`${BASE_URL}${drawNo}`, {
+    res = await fetch(`${BASE_URL}${drawNo}`, {
       headers: HEADERS,
       cache: "no-store",
     });
-    const data = await res.json();
-    if (data.returnValue !== "success") return { status: "not_found" };
-    return {
-      status: "ok",
-      draw: {
-        drwNo: data.drwNo,
-        drwtNo1: data.drwtNo1,
-        drwtNo2: data.drwtNo2,
-        drwtNo3: data.drwtNo3,
-        drwtNo4: data.drwtNo4,
-        drwtNo5: data.drwtNo5,
-        drwtNo6: data.drwtNo6,
-        bnusNo: data.bnusNo,
-      },
-    };
   } catch (e) {
+    // 실제 네트워크 오류 (DNS 실패, 연결 거부 등) → 재시도 대상
     return { status: "error", reason: e instanceof Error ? e.message : String(e) };
   }
+
+  let data: Record<string, unknown>;
+  try {
+    data = await res.json();
+  } catch {
+    // JSON 파싱 실패 = 동행복권이 HTML 오류페이지 등 반환 → 없는 회차로 처리
+    return { status: "not_found" };
+  }
+
+  if (data.returnValue !== "success") return { status: "not_found" };
+  return {
+    status: "ok",
+    draw: {
+      drwNo: data.drwNo as number,
+      drwtNo1: data.drwtNo1 as number,
+      drwtNo2: data.drwtNo2 as number,
+      drwtNo3: data.drwtNo3 as number,
+      drwtNo4: data.drwtNo4 as number,
+      drwtNo5: data.drwtNo5 as number,
+      drwtNo6: data.drwtNo6 as number,
+      bnusNo: data.bnusNo as number,
+    },
+  };
 }
 
 // 네트워크 오류 시 최대 retries 번 재시도, not_found는 즉시 null 반환
