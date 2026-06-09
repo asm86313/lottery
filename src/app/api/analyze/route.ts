@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { fetchDraw, fetchLatestDrawNo } from "@/lib/lotteryApi";
+import { fetchDrawWithStatus, fetchLatestDrawNo } from "@/lib/lotteryApi";
 import { analyzeDraws } from "@/lib/analysis";
 import { getMaxDrawNo, getDrawsFromDb, upsertDraws } from "@/lib/lotteryDb";
 import { LotteryDraw } from "@/types/lottery";
@@ -36,15 +36,20 @@ export async function GET(request: NextRequest) {
           for (let drawNo = missingFrom; drawNo <= latestDrawNo; drawNo++) {
             send({ type: "progress", message: `${drawNo}회 데이터 가져오는 중...` });
 
-            const draw = await fetchDraw(drawNo);
-            if (draw) {
+            const result = await fetchDrawWithStatus(drawNo);
+            if (result.status === "ok") {
+              const { draw } = result;
               const nums = [draw.drwtNo1, draw.drwtNo2, draw.drwtNo3, draw.drwtNo4, draw.drwtNo5, draw.drwtNo6].join(", ");
               const msg = `[${draw.drwNo}회] ${nums} | 보너스 ${draw.bnusNo}`;
               console.log(`[fetch] ${msg}`);
               send({ type: "log", message: msg });
               buffer.push(draw);
+            } else if (result.status === "not_found") {
+              const msg = `[${drawNo}회] 아직 추첨 전 (skip)`;
+              console.log(`[fetch] ${msg}`);
+              send({ type: "log", message: msg });
             } else {
-              const msg = `[${drawNo}회] 동행복권에 없음 (skip)`;
+              const msg = `[${drawNo}회] 네트워크 오류 (skip): ${result.reason}`;
               console.log(`[fetch] ${msg}`);
               send({ type: "log", message: msg });
             }

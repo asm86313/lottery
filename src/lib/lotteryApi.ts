@@ -10,27 +10,46 @@ const HEADERS = {
   Accept: "application/json, text/plain, */*",
 };
 
-export async function fetchDraw(drawNo: number): Promise<LotteryDraw | null> {
+export type FetchDrawResult =
+  | { status: "ok"; draw: LotteryDraw }
+  | { status: "not_found" }              // API returnValue !== "success" (실제로 없는 회차)
+  | { status: "error"; reason: string }; // 네트워크/파싱 오류
+
+export async function fetchDrawWithStatus(drawNo: number): Promise<FetchDrawResult> {
   try {
     const res = await fetch(`${BASE_URL}${drawNo}`, {
       headers: HEADERS,
       cache: "no-store",
     });
     const data = await res.json();
-    if (data.returnValue !== "success") return null;
+    if (data.returnValue !== "success") return { status: "not_found" };
     return {
-      drwNo: data.drwNo,
-      drwtNo1: data.drwtNo1,
-      drwtNo2: data.drwtNo2,
-      drwtNo3: data.drwtNo3,
-      drwtNo4: data.drwtNo4,
-      drwtNo5: data.drwtNo5,
-      drwtNo6: data.drwtNo6,
-      bnusNo: data.bnusNo,
+      status: "ok",
+      draw: {
+        drwNo: data.drwNo,
+        drwtNo1: data.drwtNo1,
+        drwtNo2: data.drwtNo2,
+        drwtNo3: data.drwtNo3,
+        drwtNo4: data.drwtNo4,
+        drwtNo5: data.drwtNo5,
+        drwtNo6: data.drwtNo6,
+        bnusNo: data.bnusNo,
+      },
     };
-  } catch {
-    return null;
+  } catch (e) {
+    return { status: "error", reason: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// 네트워크 오류 시 최대 retries 번 재시도, not_found는 즉시 null 반환
+export async function fetchDraw(drawNo: number, retries = 2): Promise<LotteryDraw | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await fetchDrawWithStatus(drawNo);
+    if (result.status === "ok") return result.draw;
+    if (result.status === "not_found") return null;
+    if (attempt < retries) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+  }
+  return null;
 }
 
 export async function fetchLatestDrawNo(): Promise<number> {
