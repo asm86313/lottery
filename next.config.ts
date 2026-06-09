@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async rewrites() {
+    return [
+      {
+        source: "/lottery-api/:path*",
+        destination: "https://www.dhlottery.co.kr/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
