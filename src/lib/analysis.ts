@@ -4,6 +4,23 @@ export function getNumbersFromDraw(draw: LotteryDraw): number[] {
   return [draw.drwtNo1, draw.drwtNo2, draw.drwtNo3, draw.drwtNo4, draw.drwtNo5, draw.drwtNo6];
 }
 
+// 1~45를 5개 구간으로 분류 (1-9, 10-19, 20-29, 30-39, 40-45)
+function getZone(n: number): number {
+  if (n <= 9) return 0;
+  if (n <= 19) return 1;
+  if (n <= 29) return 2;
+  if (n <= 39) return 3;
+  return 4;
+}
+
+// 추천 세트 생성 시 참고할 역대 통계 컨텍스트
+interface HistoricalContext {
+  sumMean: number;
+  sumStd: number;
+  oddCountDist: Record<number, number>; // 0~6개 홀수 개수별 출현 빈도
+  latestNumbers: number[];
+}
+
 export function analyzeDraws(draws: LotteryDraw[]): AnalysisResult {
   const sorted = [...draws].sort((a, b) => a.drwNo - b.drwNo);
   const latestDrawNo = sorted[sorted.length - 1]?.drwNo ?? 0;
@@ -20,12 +37,20 @@ export function analyzeDraws(draws: LotteryDraw[]): AnalysisResult {
     appearanceHistory[n] = [];
   }
 
+  // 합계 / 홀짝 비율 분포 집계
+  const sums: number[] = [];
+  const oddCountDist: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
   sorted.forEach((draw) => {
-    getNumbersFromDraw(draw).forEach((n) => {
+    const numbers = getNumbersFromDraw(draw);
+    numbers.forEach((n) => {
       countMap[n]++;
       lastSeenMap[n] = draw.drwNo;
       appearanceHistory[n].push(draw.drwNo);
     });
+    sums.push(numbers.reduce((a, b) => a + b, 0));
+    const oddCount = numbers.filter((n) => n % 2 !== 0).length;
+    oddCountDist[oddCount]++;
   });
 
   // NumberStat 생성
@@ -74,7 +99,19 @@ export function analyzeDraws(draws: LotteryDraw[]): AnalysisResult {
     .slice(0, 10)
     .map((s) => s.number);
 
-  const recommendedSets = generateRecommendations(numberStats, hotNumbers, coldNumbers, overdueNumbers);
+  // 역대 합계 평균/표준편차
+  const sumMean = sums.reduce((a, b) => a + b, 0) / sums.length;
+  const sumVariance = sums.reduce((a, b) => a + (b - sumMean) ** 2, 0) / sums.length;
+  const sumStd = Math.sqrt(sumVariance);
+
+  const ctx: HistoricalContext = {
+    sumMean,
+    sumStd,
+    oddCountDist,
+    latestNumbers: sorted.length > 0 ? getNumbersFromDraw(sorted[sorted.length - 1]) : [],
+  };
+
+  const recommendedSets = generateRecommendations(numberStats, hotNumbers, coldNumbers, overdueNumbers, ctx);
 
   return {
     totalDraws,
@@ -84,7 +121,7 @@ export function analyzeDraws(draws: LotteryDraw[]): AnalysisResult {
     coldNumbers,
     overdueNumbers,
     recommendedSets,
-    recentDraws: [...draws].sort((a, b) => b.drwNo - a.drwNo).slice(0, 20),
+    recentDraws: [...draws].sort((a, b) => b.drwNo - a.drwNo).slice(0, 50),
   };
 }
 
@@ -92,7 +129,8 @@ function generateRecommendations(
   stats: NumberStat[],
   hotNumbers: number[],
   coldNumbers: number[],
-  overdueNumbers: number[]
+  overdueNumbers: number[],
+  ctx: HistoricalContext
 ): RecommendedSet[] {
   const sets: RecommendedSet[] = [];
 
@@ -108,27 +146,27 @@ function generateRecommendations(
   }).sort((a, b) => b.score - a.score);
 
   // 세트 1: 핫번호 위주 + 밸런스
-  sets.push(buildBalancedSet(hotNumbers.slice(0, 10), stats, "핫번호 중심 추천"));
+  sets.push(buildBalancedSet(hotNumbers.slice(0, 10), stats, ctx, "핫번호 중심 추천"));
 
   // 세트 2: 복합 점수 상위
   const top20 = scored.slice(0, 20).map((s) => s.number);
-  sets.push(buildBalancedSet(top20, stats, "복합 점수 상위 추천"));
+  sets.push(buildBalancedSet(top20, stats, ctx, "복합 점수 상위 추천"));
 
   // 세트 3: 장기 미출현 + 핫번호 혼합
   const mixed = [...new Set([...overdueNumbers.slice(0, 5), ...hotNumbers.slice(0, 5)])];
-  sets.push(buildBalancedSet(mixed, stats, "미출현+핫번호 혼합 추천"));
+  sets.push(buildBalancedSet(mixed, stats, ctx, "미출현+핫번호 혼합 추천"));
 
   // 세트 4: 통계 기반 랜덤
-  sets.push(buildStatWeightedRandom(stats, "통계 가중 랜덤 추천"));
+  sets.push(buildStatWeightedRandom(stats, ctx, "통계 가중 랜덤 추천"));
 
   // 세트 5: 콜드번호 반등 전략
   const coldMixed = [...coldNumbers.slice(0, 3), ...hotNumbers.slice(0, 7)];
-  sets.push(buildBalancedSet(coldMixed, stats, "콜드번호 반등 전략"));
+  sets.push(buildBalancedSet(coldMixed, stats, ctx, "콜드번호 반등 전략"));
 
   return sets;
 }
 
-function buildBalancedSet(candidates: number[], stats: NumberStat[], reason: string): RecommendedSet {
+function buildBalancedSet(candidates: number[], stats: NumberStat[], ctx: HistoricalContext, reason: string): RecommendedSet {
   const pool = [...candidates];
   // 6개 미만이면 stats 기준으로 보충
   const statsSorted = [...stats].sort((a, b) => b.count - a.count);
@@ -138,23 +176,61 @@ function buildBalancedSet(candidates: number[], stats: NumberStat[], reason: str
     i++;
   }
 
-  // 홀짝 밸런스 (3:3 또는 2:4) 맞추기
-  const selected = selectWithBalance(pool, 6);
-  const score = calcSetScore(selected, stats);
-  return { numbers: selected.sort((a, b) => a - b), score, reason };
+  return finalizeSet(pool, stats, ctx, reason);
 }
 
-function selectWithBalance(pool: number[], count: number): number[] {
+// 풀에서 6개를 뽑되, 역대 통계 기반 규칙(홀짝 비율/구간 분산/직전회차 중복/합계 범위)을
+// 만족할 때까지 재시도. 실패 시 마지막 후보로 폴백.
+function finalizeSet(pool: number[], stats: NumberStat[], ctx: HistoricalContext, reason: string): RecommendedSet {
+  let candidate: number[] = [];
+
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const oddTarget = pickOddCountTarget(ctx.oddCountDist);
+    candidate = selectWithBalance(pool, 6, oddTarget);
+
+    // 직전 회차와 중복 2개 이하
+    const overlap = candidate.filter((n) => ctx.latestNumbers.includes(n)).length;
+    if (overlap > 2) continue;
+
+    // 최소 3개 구간 이상 분산
+    if (new Set(candidate.map(getZone)).size < 3) continue;
+
+    // 합계가 역대 평균 ±1.5표준편차 범위 내
+    const sum = candidate.reduce((a, b) => a + b, 0);
+    if (Math.abs(sum - ctx.sumMean) > ctx.sumStd * 1.5) continue;
+
+    break; // 모든 조건 만족
+  }
+
+  const score = calcSetScore(candidate, stats);
+  const sum = candidate.reduce((a, b) => a + b, 0);
+  return { numbers: candidate.sort((a, b) => a - b), score, reason: `${reason} (합계 ${sum})` };
+}
+
+// 역대 홀수 개수 분포를 가중치로 삼아 목표 홀수 개수(0~6) 선택
+function pickOddCountTarget(oddCountDist: Record<number, number>): number {
+  const entries = Object.entries(oddCountDist).map(([k, v]) => [Number(k), v] as [number, number]);
+  const total = entries.reduce((sum, [, v]) => sum + v, 0);
+  if (total === 0) return 3;
+
+  let r = Math.random() * total;
+  for (const [oddCount, freq] of entries) {
+    r -= freq;
+    if (r <= 0) return oddCount;
+  }
+  return 3;
+}
+
+function selectWithBalance(pool: number[], count: number, oddCount: number): number[] {
   const odds = pool.filter((n) => n % 2 !== 0);
   const evens = pool.filter((n) => n % 2 === 0);
   const selected: number[] = [];
 
-  // 3홀 3짝 목표
-  const oddCount = Math.min(3, odds.length);
-  const evenCount = count - oddCount;
+  const targetOdd = Math.min(oddCount, odds.length);
+  const targetEven = count - targetOdd;
 
-  shufflePick(odds, oddCount).forEach((n) => selected.push(n));
-  shufflePick(evens, Math.min(evenCount, evens.length)).forEach((n) => selected.push(n));
+  shufflePick(odds, targetOdd).forEach((n) => selected.push(n));
+  shufflePick(evens, Math.min(targetEven, evens.length)).forEach((n) => selected.push(n));
 
   // 부족하면 나머지로 보충
   const remaining = pool.filter((n) => !selected.includes(n));
@@ -174,24 +250,45 @@ function shufflePick(arr: number[], count: number): number[] {
   return copy.slice(0, count);
 }
 
-function buildStatWeightedRandom(stats: NumberStat[], reason: string): RecommendedSet {
+function buildStatWeightedRandom(stats: NumberStat[], ctx: HistoricalContext, reason: string): RecommendedSet {
   const weights = stats.map((s) => ({ n: s.number, w: s.count + 1 }));
   const totalWeight = weights.reduce((sum, x) => sum + x.w, 0);
-  const selected: number[] = [];
 
-  while (selected.length < 6) {
-    let rand = Math.random() * totalWeight;
-    for (const { n, w } of weights) {
-      rand -= w;
-      if (rand <= 0 && !selected.includes(n)) {
-        selected.push(n);
-        break;
+  let candidate: number[] = [];
+
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const selected: number[] = [];
+    while (selected.length < 6) {
+      let rand = Math.random() * totalWeight;
+      for (const { n, w } of weights) {
+        rand -= w;
+        if (rand <= 0 && !selected.includes(n)) {
+          selected.push(n);
+          break;
+        }
       }
     }
+
+    const overlap = selected.filter((n) => ctx.latestNumbers.includes(n)).length;
+    if (overlap > 2) continue;
+
+    if (new Set(selected.map(getZone)).size < 3) continue;
+
+    const sum = selected.reduce((a, b) => a + b, 0);
+    if (Math.abs(sum - ctx.sumMean) > ctx.sumStd * 1.5) continue;
+
+    candidate = selected;
+    break;
   }
 
-  const score = calcSetScore(selected, stats);
-  return { numbers: selected.sort((a, b) => a - b), score, reason };
+  if (candidate.length === 0) {
+    // 폴백: 마지막 시도 결과라도 사용
+    candidate = shufflePick(stats.map((s) => s.number), 6);
+  }
+
+  const score = calcSetScore(candidate, stats);
+  const sum = candidate.reduce((a, b) => a + b, 0);
+  return { numbers: candidate.sort((a, b) => a - b), score, reason: `${reason} (합계 ${sum})` };
 }
 
 function calcSetScore(numbers: number[], stats: NumberStat[]): number {

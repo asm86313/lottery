@@ -22,7 +22,7 @@ export default function RecommendedSets({ sets }: RecommendedSetsProps) {
               </span>
               <span className="text-sm font-medium text-gray-700">{set.reason}</span>
             </div>
-            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+            <span className="text-xs text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full">
               점수 {set.score.toFixed(1)}
             </span>
           </div>
