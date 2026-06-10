@@ -23,7 +23,7 @@ export default function HotColdPanel({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div className="bg-orange-50 rounded-xl border border-orange-100 p-4">
-        <h3 className="text-sm font-semibold text-orange-700 mb-1">
+        <h3 className="text-sm font-bold text-orange-700 mb-1">
           🔥 핫번호 <span className="font-normal text-orange-500">(최근 50회 다빈도)</span>
         </h3>
         <div className="flex flex-wrap gap-2 mt-3">
@@ -40,7 +40,7 @@ export default function HotColdPanel({
       </div>
 
       <div className="bg-sky-50 rounded-xl border border-sky-100 p-4">
-        <h3 className="text-sm font-semibold text-sky-700 mb-1">
+        <h3 className="text-sm font-bold text-sky-700 mb-1">
           ❄️ 콜드번호 <span className="font-normal text-sky-500">(최근 50회 저빈도)</span>
         </h3>
         <div className="flex flex-wrap gap-2 mt-3">
@@ -57,7 +57,7 @@ export default function HotColdPanel({
       </div>
 
       <div className="bg-purple-50 rounded-xl border border-purple-100 p-4">
-        <h3 className="text-sm font-semibold text-purple-700 mb-1">
+        <h3 className="text-sm font-bold text-purple-700 mb-1">
           ⏳ 장기 미출현 <span className="font-normal text-purple-500">(반등 예상)</span>
         </h3>
         <div className="flex flex-wrap gap-2 mt-3">

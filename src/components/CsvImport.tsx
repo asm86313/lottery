@@ -27,7 +27,7 @@ export default function CsvImport() {
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-blue-800 mb-1">CSV 데이터 Import</h3>
+      <h3 className="text-sm font-bold text-blue-800 mb-1">CSV 데이터 Import</h3>
       <p className="text-xs text-blue-600 mb-3">
         동행복권 사이트 → 당첨번호 조회 → 엑셀 저장 → CSV 변환 후 업로드
       </p>

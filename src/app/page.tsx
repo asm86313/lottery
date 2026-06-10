@@ -94,7 +94,7 @@ function ManualEntryModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-gray-800">누락 회차 입력</h2>
-          <span className="text-sm text-gray-400">{idx + 1} / {total}</span>
+          <span className="text-sm text-gray-600">{idx + 1} / {total}</span>
         </div>
 
         {/* 진행 바 */}
@@ -116,7 +116,7 @@ function ManualEntryModal({
                   ? "bg-green-100 border-green-300 text-green-700"
                   : i === idx
                   ? "bg-indigo-600 border-indigo-600 text-white"
-                  : "border-gray-200 text-gray-500 hover:border-indigo-300"
+                  : "border-gray-200 text-gray-700 hover:border-indigo-300"
               }`}
             >
               {no}회
@@ -126,7 +126,7 @@ function ManualEntryModal({
 
         {/* 현재 회차 입력 */}
         <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-700">
+          <p className="text-sm font-bold text-gray-700">
             {drawNo}회 당첨번호 입력
           </p>
           <div className="flex gap-1">
@@ -143,12 +143,12 @@ function ManualEntryModal({
                   setNums(next);
                 }}
                 placeholder={String(i + 1)}
-                className="w-full border border-gray-200 rounded-lg text-center text-sm py-2 focus:outline-none focus:border-indigo-400 [appearance:textfield]"
+                className="w-full border border-gray-200 rounded-lg text-center text-sm py-2 text-gray-900 bg-white focus:outline-none focus:border-indigo-400 [appearance:textfield]"
               />
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 shrink-0">보너스</span>
+            <span className="text-xs text-gray-700 shrink-0">보너스</span>
             <input
               type="number"
               min={1}
@@ -156,7 +156,7 @@ function ManualEntryModal({
               value={bonus}
               onChange={(e) => setBonus(e.target.value)}
               placeholder="보너스"
-              className="w-24 border border-yellow-300 rounded-lg text-center text-sm py-2 focus:outline-none focus:border-yellow-400 [appearance:textfield]"
+              className="w-24 border border-yellow-300 rounded-lg text-center text-sm py-2 text-gray-900 bg-white focus:outline-none focus:border-yellow-400 [appearance:textfield]"
             />
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
@@ -166,14 +166,14 @@ function ManualEntryModal({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
           >
             {saving ? "저장 중..." : "저장"}
           </button>
           {idx < total - 1 && (
             <button
               onClick={() => { setIdx(idx + 1); reset(); }}
-              className="px-4 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded-xl text-sm transition-colors"
+              className="px-4 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm transition-colors"
             >
               건너뛰기 →
             </button>
@@ -182,7 +182,7 @@ function ManualEntryModal({
 
         <button
           onClick={onDone}
-          className="text-sm text-gray-400 hover:text-gray-600 text-center"
+          className="text-sm text-gray-600 hover:text-gray-600 text-center"
         >
           {saved.size > 0 ? `${saved.size}개 저장 완료 → 분석 시작` : "DB만 분석하기"}
         </button>
@@ -287,13 +287,13 @@ export default function Home() {
             <h1 className="text-xl font-bold text-gray-900">
               🍀 로또 번호 분석기
             </h1>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-gray-700 mt-0.5">
               동행복권 전체 회차 데이터 기반 통계 분석
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {meta && (
-              <span className="text-xs text-gray-400 hidden sm:block">
+              <span className="text-xs text-gray-600 hidden sm:block">
                 DB {meta.savedInDb}회 · 분석 {meta.analyzedCount}회
               </span>
             )}
@@ -324,18 +324,18 @@ export default function Home() {
             <div className="text-center">
               <div className="text-6xl mb-3">🎱</div>
               <h2 className="text-2xl font-bold text-gray-700 mb-2">로또 번호 분석기</h2>
-              <p className="text-gray-500 text-sm">DB에 데이터가 있으면 바로 분석합니다.</p>
+              <p className="text-gray-700 text-sm">DB에 데이터가 있으면 바로 분석합니다.</p>
             </div>
             <button
               onClick={() => startAnalysis()}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-semibold text-lg transition-colors shadow-lg shadow-indigo-200"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold text-lg transition-colors shadow-lg shadow-indigo-200"
             >
               분석 시작하기
             </button>
             <div className="w-full max-w-lg">
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400">DB가 비어있다면 CSV로 데이터를 추가하세요</span>
+                <span className="text-xs text-gray-600">DB가 비어있다면 CSV로 데이터를 추가하세요</span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
               <CsvImport />
@@ -381,7 +381,7 @@ export default function Home() {
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     tab === t.key
                       ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                      : "text-gray-700 hover:text-gray-700"
                   }`}
                 >
                   {t.label}
@@ -398,7 +398,7 @@ export default function Home() {
                   stats={data.numberStats}
                 />
                 <div>
-                  <h2 className="text-base font-semibold text-gray-800 mb-3">
+                  <h2 className="text-base font-bold text-gray-800 mb-3">
                     추천 번호 세트
                   </h2>
                   <RecommendedSets sets={data.recommendedSets} />
@@ -409,11 +409,11 @@ export default function Home() {
             {tab === "analysis" && (
               <div className="flex flex-col gap-6">
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                  <h2 className="text-base font-semibold text-gray-800 mb-4">
+                  <h2 className="text-base font-bold text-gray-800 mb-4">
                     번호별 출현 빈도 (전체 회차)
                   </h2>
                   <FrequencyChart stats={data.numberStats} />
-                  <div className="flex gap-4 mt-3 text-xs text-gray-500 flex-wrap">
+                  <div className="flex gap-4 mt-3 text-xs text-gray-700 flex-wrap">
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-400 inline-block" /> 1~10</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /> 11~20</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" /> 21~30</span>
@@ -423,13 +423,13 @@ export default function Home() {
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                  <h2 className="text-base font-semibold text-gray-800 mb-4">
+                  <h2 className="text-base font-bold text-gray-800 mb-4">
                     번호별 상세 통계
                   </h2>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-100 text-gray-500 text-xs">
+                        <tr className="border-b border-gray-100 text-gray-700 text-xs">
                           <th className="text-left py-2 px-2">번호</th>
                           <th className="text-right py-2 px-2">출현 횟수</th>
                           <th className="text-right py-2 px-2">출현율</th>
@@ -449,7 +449,7 @@ export default function Home() {
                               <td className="py-2 px-2">
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-gray-900"
                                     style={{
                                       backgroundColor:
                                         s.number <= 10
@@ -467,11 +467,11 @@ export default function Home() {
                                   </span>
                                 </div>
                               </td>
-                              <td className="text-right py-2 px-2 font-semibold">{s.count}</td>
-                              <td className="text-right py-2 px-2 text-gray-500">
+                              <td className="text-right py-2 px-2 font-bold text-gray-700">{s.count}</td>
+                              <td className="text-right py-2 px-2 text-gray-700">
                                 {s.frequency.toFixed(1)}%
                               </td>
-                              <td className="text-right py-2 px-2 text-gray-500">
+                              <td className="text-right py-2 px-2 text-gray-700">
                                 {s.lastDrawNo}회
                               </td>
                               <td className="text-right py-2 px-2">
@@ -487,7 +487,7 @@ export default function Home() {
                                   {s.lastAppeared}회
                                 </span>
                               </td>
-                              <td className="text-right py-2 px-2 text-gray-500">
+                              <td className="text-right py-2 px-2 text-gray-700">
                                 {s.gap}회
                               </td>
                             </tr>
@@ -501,14 +501,14 @@ export default function Home() {
 
             {tab === "history" && (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <h2 className="text-base font-semibold text-gray-800 mb-4">
-                  최근 20회 당첨번호
+                <h2 className="text-base font-bold text-gray-800 mb-4">
+                  최근 50회 당첨번호
                 </h2>
                 <HistoryTable draws={data.recentDraws} />
               </div>
             )}
 
-            <p className="text-xs text-gray-400 text-center pb-4">
+            <p className="text-xs text-gray-600 text-center pb-4">
               ※ 이 프로그램은 통계 분석 기반 참고용이며, 당첨을 보장하지 않습니다.
             </p>
           </div>
