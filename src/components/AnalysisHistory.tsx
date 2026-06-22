@@ -68,17 +68,42 @@ export default function AnalysisHistory() {
 
   if (selectedDrawNo !== null) {
     return (
-      <div>
-        <button
-          onClick={() => setSelectedDrawNo(null)}
-          className="mb-4 px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
-        >
-          ← 돌아가기
-        </button>
-        <ComparisonResult
-          drawNo={selectedDrawNo}
-          onLoaded={() => setComparisonLoading(false)}
-        />
+      <div className="space-y-6">
+        {/* 비교 결과 */}
+        <div className="bg-white rounded-xl border border-indigo-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800">당첨 비교 결과</h3>
+            <button
+              onClick={() => setSelectedDrawNo(null)}
+              className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+            >
+              ← 목록으로
+            </button>
+          </div>
+          <ComparisonResult
+            drawNo={selectedDrawNo}
+            onLoaded={() => setComparisonLoading(false)}
+          />
+        </div>
+
+        {/* 분석 히스토리 목록 (배경에 표시) */}
+        <div className="opacity-60 pointer-events-none">
+          <h3 className="text-lg font-bold text-gray-800 mb-3">분석 히스토리</h3>
+          {latestDrawNo !== null && (
+            <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-2 mb-3">
+              💡 현재 DB 최신 회차: <strong>{latestDrawNo}회</strong>
+            </div>
+          )}
+          <div className="space-y-2">
+            {histories.slice(0, 3).map((h) => (
+              <div key={h.id} className="bg-gray-100 rounded-lg border border-gray-200 p-3">
+                <div className="font-semibold text-gray-700 mb-2">
+                  회차 {h.analyzed_draw_no} 분석 → {h.analyzed_draw_no + 1}회 당첨
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
