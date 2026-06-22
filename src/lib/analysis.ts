@@ -19,6 +19,9 @@ interface HistoricalContext {
   sumStd: number;
   oddCountDist: Record<number, number>; // 0~6개 홀수 개수별 출현 빈도
   latestNumbers: number[];
+  sortedDraws: LotteryDraw[];
+  acTargetMin: number; // 역대 AC값 평균 - 1σ
+  acTargetMax: number; // 역대 AC값 평균 + 1σ
 }
 
 export function analyzeDraws(draws: LotteryDraw[]): AnalysisResult {
@@ -104,11 +107,26 @@ export function analyzeDraws(draws: LotteryDraw[]): AnalysisResult {
   const sumVariance = sums.reduce((a, b) => a + (b - sumMean) ** 2, 0) / sums.length;
   const sumStd = Math.sqrt(sumVariance);
 
+  // 역대 AC값 분포 (AC = 번호 간 차이값의 고유 개수 - 5)
+  const acValues = sorted.map((draw) => {
+    const nums = getNumbersFromDraw(draw);
+    const diffs = new Set<number>();
+    for (let i = 0; i < nums.length; i++)
+      for (let j = i + 1; j < nums.length; j++)
+        diffs.add(Math.abs(nums[i] - nums[j]));
+    return diffs.size - 5;
+  });
+  const acMean = acValues.reduce((a, b) => a + b, 0) / acValues.length;
+  const acStd = Math.sqrt(acValues.reduce((a, b) => a + (b - acMean) ** 2, 0) / acValues.length);
+
   const ctx: HistoricalContext = {
     sumMean,
     sumStd,
     oddCountDist,
     latestNumbers: sorted.length > 0 ? getNumbersFromDraw(sorted[sorted.length - 1]) : [],
+    sortedDraws: sorted,
+    acTargetMin: Math.max(0, Math.round(acMean - acStd)),
+    acTargetMax: Math.min(10, Math.round(acMean + acStd)),
   };
 
   const recommendedSets = generateRecommendations(numberStats, hotNumbers, coldNumbers, overdueNumbers, ctx);
@@ -176,6 +194,26 @@ function generateRecommendations(
     return buildBalancedSet(coldMixed, stats, ctx, "");
   }, "전략 통합 빈출 추천", stats, SIMS * 5));
 
+  // 세트 7: 동반 출현 전략 — 자주 같이 나온 번호 쌍에서 가장 중심적인 번호
+  const coPool = getCoOccurrencePool(ctx.sortedDraws);
+  sets.push(runSimulation(() => finalizeSet(coPool, stats, ctx, ""), "동반 출현 전략", stats, SIMS));
+
+  // 세트 8: 끝자리 분산 전략 — 6개 번호의 1의 자리가 최대한 겹치지 않는 조합
+  const unitPool = getUnitDigitSpreadPool(stats);
+  sets.push(runSimulation(
+    () => finalizeSet(unitPool, stats, ctx, "", (c) => new Set(c.map((n) => n % 10)).size >= 5),
+    "끝자리 분산 전략",
+    stats,
+    SIMS
+  ));
+
+  // 세트 9: AC값 최적화 전략 — 역대 당첨 번호의 AC값 최빈 구간을 타겟
+  sets.push(runSimulation(() => buildACOptimizedSet(stats, ctx, ""), "AC값 최적화 전략", stats, SIMS));
+
+  // 세트 10: 단기 트렌드 반전 전략 — 최근 6~20회에 빈출했으나 직전 5회에는 없는 번호
+  const trendPool = getTrendReversalPool(ctx.sortedDraws);
+  sets.push(runSimulation(() => finalizeSet(trendPool, stats, ctx, ""), "단기 트렌드 반전 전략", stats, SIMS));
+
   return sets;
 }
 
@@ -193,11 +231,17 @@ function buildBalancedSet(candidates: number[], stats: NumberStat[], ctx: Histor
 }
 
 // 풀에서 6개를 뽑되, 역대 통계 기반 규칙(홀짝 비율/구간 분산/직전회차 중복/합계 범위)을
-// 만족할 때까지 재시도. 실패 시 마지막 후보로 폴백.
-function finalizeSet(pool: number[], stats: NumberStat[], ctx: HistoricalContext, reason: string): RecommendedSet {
+// 만족할 때까지 재시도. extraCheck로 전략별 추가 조건 전달 가능.
+function finalizeSet(
+  pool: number[],
+  stats: NumberStat[],
+  ctx: HistoricalContext,
+  reason: string,
+  extraCheck?: (c: number[]) => boolean
+): RecommendedSet {
   let candidate: number[] = [];
 
-  for (let attempt = 0; attempt < 30; attempt++) {
+  for (let attempt = 0; attempt < 50; attempt++) {
     const oddTarget = pickOddCountTarget(ctx.oddCountDist);
     candidate = selectWithBalance(pool, 6, oddTarget);
 
@@ -212,7 +256,10 @@ function finalizeSet(pool: number[], stats: NumberStat[], ctx: HistoricalContext
     const sum = candidate.reduce((a, b) => a + b, 0);
     if (Math.abs(sum - ctx.sumMean) > ctx.sumStd * 1.5) continue;
 
-    break; // 모든 조건 만족
+    // 전략별 추가 조건
+    if (extraCheck && !extraCheck(candidate)) continue;
+
+    break;
   }
 
   const score = calcSetScore(candidate, stats);
@@ -310,6 +357,97 @@ function calcSetScore(numbers: number[], stats: NumberStat[]): number {
     return sum + (s ? s.frequency : 0);
   }, 0);
   return Math.round((total / numbers.length) * 10) / 10;
+}
+
+// ── 세트 7: 동반 출현 ──────────────────────────────────────────────────────
+// 가장 자주 같이 출현한 상위 30쌍에서 많이 등장하는 번호 상위 15개를 풀로 반환.
+function getCoOccurrencePool(draws: LotteryDraw[]): number[] {
+  const coCount: Record<string, number> = {};
+  draws.forEach((draw) => {
+    const nums = getNumbersFromDraw(draw);
+    for (let i = 0; i < nums.length; i++)
+      for (let j = i + 1; j < nums.length; j++) {
+        const a = Math.min(nums[i], nums[j]);
+        const b = Math.max(nums[i], nums[j]);
+        const key = `${a}-${b}`;
+        coCount[key] = (coCount[key] || 0) + 1;
+      }
+  });
+  const topPairs = Object.entries(coCount).sort(([, a], [, b]) => b - a).slice(0, 30);
+  const score: Record<number, number> = {};
+  topPairs.forEach(([key, cnt]) => {
+    const [a, b] = key.split("-").map(Number);
+    score[a] = (score[a] || 0) + cnt;
+    score[b] = (score[b] || 0) + cnt;
+  });
+  return Object.entries(score).sort(([, a], [, b]) => b - a).slice(0, 15).map(([n]) => Number(n));
+}
+
+// ── 세트 8: 끝자리 분산 ────────────────────────────────────────────────────
+// 0~9 각 끝자리 그룹에서 빈도 상위 2개씩 추출해 20개 풀 구성.
+function getUnitDigitSpreadPool(stats: NumberStat[]): number[] {
+  const byUnit: Record<number, number[]> = {};
+  for (let d = 0; d <= 9; d++) byUnit[d] = [];
+  [...stats].sort((a, b) => b.count - a.count).forEach((s) => byUnit[s.number % 10].push(s.number));
+  const pool: number[] = [];
+  for (let d = 0; d <= 9; d++) byUnit[d].slice(0, 2).forEach((n) => pool.push(n));
+  return pool;
+}
+
+// ── 세트 9: AC값 최적화 ────────────────────────────────────────────────────
+// AC = 번호 간 차이값의 고유 개수 - 5. 역대 AC 평균±1σ 범위의 조합을 가중 랜덤으로 생성.
+function calcAC(numbers: number[]): number {
+  const diffs = new Set<number>();
+  for (let i = 0; i < numbers.length; i++)
+    for (let j = i + 1; j < numbers.length; j++)
+      diffs.add(Math.abs(numbers[i] - numbers[j]));
+  return diffs.size - (numbers.length - 1);
+}
+
+function buildACOptimizedSet(stats: NumberStat[], ctx: HistoricalContext, reason: string): RecommendedSet {
+  const weights = stats.map((s) => ({ n: s.number, w: s.count + 1 }));
+  const totalWeight = weights.reduce((sum, x) => sum + x.w, 0);
+  let candidate: number[] = [];
+
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const selected: number[] = [];
+    while (selected.length < 6) {
+      let rand = Math.random() * totalWeight;
+      for (const { n, w } of weights) {
+        rand -= w;
+        if (rand <= 0 && !selected.includes(n)) { selected.push(n); break; }
+      }
+    }
+    if (selected.length < 6) continue;
+    const overlap = selected.filter((n) => ctx.latestNumbers.includes(n)).length;
+    if (overlap > 2) continue;
+    if (new Set(selected.map(getZone)).size < 3) continue;
+    const sum = selected.reduce((a, b) => a + b, 0);
+    if (Math.abs(sum - ctx.sumMean) > ctx.sumStd * 1.5) continue;
+    if (calcAC(selected) < ctx.acTargetMin || calcAC(selected) > ctx.acTargetMax) continue;
+    candidate = selected;
+    break;
+  }
+
+  if (candidate.length === 0) candidate = shufflePick(stats.map((s) => s.number), 6);
+  const score = calcSetScore(candidate, stats);
+  const sum = candidate.reduce((a, b) => a + b, 0);
+  return { numbers: candidate.sort((a, b) => a - b), score, reason: `${reason} (합계 ${sum})` };
+}
+
+// ── 세트 10: 단기 트렌드 반전 ─────────────────────────────────────────────
+// 최근 6~20회에 집중 출현했으나 직전 5회에는 없는 번호 상위 15개를 풀로 반환.
+function getTrendReversalPool(draws: LotteryDraw[]): number[] {
+  const last5 = new Set<number>();
+  draws.slice(-5).forEach((d) => getNumbersFromDraw(d).forEach((n) => last5.add(n)));
+  const count6to20: Record<number, number> = {};
+  for (let n = 1; n <= 45; n++) count6to20[n] = 0;
+  draws.slice(-20, -5).forEach((d) => getNumbersFromDraw(d).forEach((n) => count6to20[n]++));
+  return Object.entries(count6to20)
+    .filter(([n, c]) => !last5.has(Number(n)) && c > 0)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 15)
+    .map(([n]) => Number(n));
 }
 
 // 전략 함수를 iterations 회 반복해 가장 많이 뽑힌 6개 번호를 최종 출력으로 반환한다.
