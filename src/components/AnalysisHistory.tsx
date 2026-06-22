@@ -87,7 +87,7 @@ export default function AnalysisHistory() {
         </div>
 
         {/* 분석 히스토리 목록 (배경에 표시) */}
-        <div className="opacity-60 pointer-events-none">
+        <div className="pointer-events-none">
           <h3 className="text-lg font-bold text-gray-800 mb-3">분석 히스토리</h3>
           {latestDrawNo !== null && (
             <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-2 mb-3">
