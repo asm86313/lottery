@@ -192,15 +192,15 @@ export default function AnalysisHistory() {
               </div>
               <button
                 onClick={() => handleCompare(h.analyzed_draw_no)}
-                disabled={comparisonLoading || !canCompare}
+                disabled={comparisonLoading}
                 title={
                   !canCompare
-                    ? `${h.analyzed_draw_no}회차 당첨 번호가 업데이트되면 비교 가능`
+                    ? `${h.analyzed_draw_no}회차 당첨 번호 대기 중 (추천 번호는 볼 수 있습니다)`
                     : ""
                 }
                 className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                당첨 비교
+                상세확인
               </button>
             </div>
           );
