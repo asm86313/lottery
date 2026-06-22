@@ -1,5 +1,5 @@
 import { analyzeDraws } from "@/lib/analysis";
-import { getMaxDrawNo, getDrawsFromDb, saveAnalysis } from "@/lib/lotteryDb";
+import { getDrawsFromDb, saveAnalysis } from "@/lib/lotteryDb";
 import { fetchLatestDrawNo } from "@/lib/lotteryApi";
 
 export async function GET() {
@@ -23,11 +23,11 @@ export async function GET() {
         }
 
         const result = analyzeDraws(draws);
-        const savedInDb = await getMaxDrawNo();
         const latestDrawNo = fetchLatestDrawNo();
+        const analyzeUpToDrawNo = Math.max(...draws.map(d => d.drwNo)); // 분석에 포함된 최신 회차
 
         // 분석 결과 저장
-        const analysisId = await saveAnalysis(savedInDb, result.recommendedSets);
+        const analysisId = await saveAnalysis(analyzeUpToDrawNo, result.recommendedSets);
 
         send({
           type: "result",
@@ -35,7 +35,7 @@ export async function GET() {
           data: result,
           meta: {
             latestDrawNo,
-            savedInDb,
+            savedInDb: analyzeUpToDrawNo,
             analyzedCount: draws.length,
             newlyFetched: 0,
             analysisId,
