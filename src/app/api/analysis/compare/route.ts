@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const targetDrawNo = parseInt(drawNo, 10);
+    const targetDrawNo = parseInt(drawNo, 10); // 예측 대상 회차
     const analysis = await getAnalysisByDrawNo(targetDrawNo);
     if (!analysis) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     }
 
     const allDraws = await getDrawsFromDb();
-    const targetDraw = allDraws.find((d) => d.drwNo === targetDrawNo + 1);
+    const targetDraw = allDraws.find((d) => d.drwNo === targetDrawNo); // 예측 대상 회차의 당첨 번호
 
     // 당첨 번호가 없어도 추천 세트는 반환
     let winningNumbers: number[] | undefined;
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       analyzedDrawNo: targetDrawNo,
-      winningDrawNo: targetDrawNo + 1,
+      winningDrawNo: targetDrawNo,
       winningNumbers,
       matches,
       bestMatched: maxMatched,

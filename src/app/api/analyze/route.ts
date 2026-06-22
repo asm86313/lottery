@@ -25,9 +25,10 @@ export async function GET() {
         const result = analyzeDraws(draws);
         const latestDrawNo = fetchLatestDrawNo();
         const analyzeUpToDrawNo = Math.max(...draws.map(d => d.drwNo)); // 분석에 포함된 최신 회차
+        const predictDrawNo = analyzeUpToDrawNo + 1; // 예측 대상 회차
 
-        // 분석 결과 저장
-        const analysisId = await saveAnalysis(analyzeUpToDrawNo, result.recommendedSets);
+        // 분석 결과 저장 (예측 대상 회차로 저장)
+        const analysisId = await saveAnalysis(predictDrawNo, result.recommendedSets);
 
         send({
           type: "result",

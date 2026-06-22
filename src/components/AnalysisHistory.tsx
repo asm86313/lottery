@@ -98,7 +98,7 @@ export default function AnalysisHistory() {
             {histories.slice(0, 3).map((h) => (
               <div key={h.id} className="bg-gray-100 rounded-lg border border-gray-200 p-3">
                 <div className="font-semibold text-gray-700 mb-2">
-                  회차 {h.analyzed_draw_no} 분석 → {h.analyzed_draw_no + 1}회 당첨
+                  {h.analyzed_draw_no}회 분석
                 </div>
               </div>
             ))}
@@ -113,13 +113,12 @@ export default function AnalysisHistory() {
       <h3 className="text-lg font-bold text-gray-800">분석 히스토리</h3>
       {latestDrawNo !== null && (
         <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-2">
-          💡 현재 DB 최신 회차: <strong>{latestDrawNo}회</strong> · 당첨 비교는 분석 회차 다음 회차의 당첨 번호가 있을 때 가능합니다
+          💡 현재 DB 최신 회차: <strong>{latestDrawNo}회</strong> · 당첨 비교는 분석 회차의 당첨 번호가 업데이트되면 가능합니다
         </div>
       )}
       <div className="space-y-2">
         {histories.map((h) => {
-          const canCompare = latestDrawNo !== null && latestDrawNo > h.analyzed_draw_no;
-          const nextDrawNo = h.analyzed_draw_no + 1;
+          const canCompare = latestDrawNo !== null && latestDrawNo >= h.analyzed_draw_no;
           return (
             <div
               key={h.id}
@@ -131,7 +130,7 @@ export default function AnalysisHistory() {
             >
               <div className="flex-1">
                 <div className="font-semibold text-gray-700 mb-2">
-                  회차 {h.analyzed_draw_no} 분석 → {nextDrawNo}회 당첨
+                  {h.analyzed_draw_no}회 분석
                 </div>
                 <div className="text-xs text-gray-500 mb-2">
                   {new Date(h.created_at).toLocaleString("ko-KR")}
@@ -144,7 +143,7 @@ export default function AnalysisHistory() {
                   </div>
                 ) : (
                   <div className="text-xs text-amber-600">
-                    {nextDrawNo}회 당첨 번호 대기 중
+                    {h.analyzed_draw_no}회 당첨 번호 대기 중
                   </div>
                 )}
               </div>
@@ -153,7 +152,7 @@ export default function AnalysisHistory() {
                 disabled={comparisonLoading || !canCompare}
                 title={
                   !canCompare
-                    ? `${nextDrawNo}회차 당첨 번호가 업데이트되면 비교 가능`
+                    ? `${h.analyzed_draw_no}회차 당첨 번호가 업데이트되면 비교 가능`
                     : ""
                 }
                 className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
