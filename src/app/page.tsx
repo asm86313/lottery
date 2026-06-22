@@ -372,27 +372,46 @@ export default function Home() {
           </div>
         )}
 
-        {/* 분석 없이도 접근 가능한 탭 */}
+        {/* 분석 없이도 모든 탭 접근 가능 */}
         {!data && !loading && !error && (
           <div className="flex flex-col gap-6">
             {/* 탭 */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
-              {tabs
-                .filter((t) => !t.requiresAnalysis)
-                .map((t) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTab(t.key)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      tab === t.key
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-gray-700 hover:text-gray-700"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              {tabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    tab === t.key
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : t.requiresAnalysis
+                      ? "text-gray-400 cursor-not-allowed"
+                      : "text-gray-700 hover:text-gray-700"
+                  }`}
+                  disabled={t.requiresAnalysis}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
+
+            {/* 분석 필요 안내 */}
+            {tab !== "lottery-history" &&
+              tab !== "number-stats" &&
+              tab !== "draw-search" && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6 text-center">
+                  <p className="text-indigo-700 font-medium mb-3">📊 분석이 필요합니다</p>
+                  <p className="text-sm text-indigo-600 mb-4">
+                    이 탭을 보려면 먼저 분석을 실행해주세요.
+                  </p>
+                  <button
+                    onClick={() => startAnalysis()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    분석 시작하기
+                  </button>
+                </div>
+              )}
 
             {/* 탭 컨텐츠 */}
             {tab === "lottery-history" && <LotteryHistoryViewer />}
