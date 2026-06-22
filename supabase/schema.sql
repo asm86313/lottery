@@ -21,8 +21,8 @@ CREATE POLICY "public read"
   ON lottery_draws FOR SELECT
   USING (true);
 
--- 인덱스 (날짜 범위 조회 대비)
-CREATE INDEX IF NOT EXISTS idx_lottery_draws_date ON lottery_draws (drw_no_date);
+-- 인덱스
+CREATE INDEX IF NOT EXISTS idx_lottery_draws_drw_no ON lottery_draws (drw_no);
 
 -- 분석 결과 저장 테이블
 CREATE TABLE IF NOT EXISTS analysis_results (
