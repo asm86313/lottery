@@ -9,8 +9,11 @@ import RecommendedSets from "@/components/RecommendedSets";
 import HistoryTable from "@/components/HistoryTable";
 import CsvImport from "@/components/CsvImport";
 import AnalysisHistory from "@/components/AnalysisHistory";
+import LotteryHistoryViewer from "@/components/LotteryHistoryViewer";
+import NumberStatsViewer from "@/components/NumberStatsViewer";
+import DrawSearcher from "@/components/DrawSearcher";
 
-type Tab = "recommend" | "analysis" | "history" | "analysis-compare";
+type Tab = "recommend" | "analysis" | "history" | "analysis-compare" | "lottery-history" | "number-stats" | "draw-search";
 
 interface MissingInfo {
   missingDrawNos: number[];
@@ -273,11 +276,14 @@ export default function Home() {
     }
   }, [doAnalysis]);
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "recommend", label: "🎯 추천 번호" },
-    { key: "analysis", label: "📊 통계 분석" },
-    { key: "analysis-compare", label: "✅ 당첨 비교" },
-    { key: "history", label: "📋 당첨 이력" },
+  const tabs: { key: Tab; label: string; requiresAnalysis: boolean }[] = [
+    { key: "lottery-history", label: "🎲 당첨 번호 조회", requiresAnalysis: false },
+    { key: "number-stats", label: "📈 번호별 통계", requiresAnalysis: false },
+    { key: "draw-search", label: "🔍 회차 검색", requiresAnalysis: false },
+    { key: "recommend", label: "🎯 추천 번호", requiresAnalysis: true },
+    { key: "analysis", label: "📊 통계 분석", requiresAnalysis: true },
+    { key: "analysis-compare", label: "✅ 당첨 비교", requiresAnalysis: true },
+    { key: "history", label: "📋 당첨 이력", requiresAnalysis: true },
   ];
 
   return (
@@ -366,6 +372,35 @@ export default function Home() {
           </div>
         )}
 
+        {/* 분석 없이도 접근 가능한 탭 */}
+        {!data && !loading && !error && (
+          <div className="flex flex-col gap-6">
+            {/* 탭 */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
+              {tabs
+                .filter((t) => !t.requiresAnalysis)
+                .map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setTab(t.key)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      tab === t.key
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-gray-700 hover:text-gray-700"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+            </div>
+
+            {/* 탭 컨텐츠 */}
+            {tab === "lottery-history" && <LotteryHistoryViewer />}
+            {tab === "number-stats" && <NumberStatsViewer />}
+            {tab === "draw-search" && <DrawSearcher />}
+          </div>
+        )}
+
         {/* 결과 */}
         {data && !loading && (
           <div className="flex flex-col gap-6">
@@ -375,7 +410,7 @@ export default function Home() {
             />
 
             {/* 탭 */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
               {tabs.map((t) => (
                 <button
                   key={t.key}
@@ -500,6 +535,12 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {tab === "lottery-history" && <LotteryHistoryViewer />}
+
+            {tab === "number-stats" && <NumberStatsViewer />}
+
+            {tab === "draw-search" && <DrawSearcher />}
 
             {tab === "analysis-compare" && (
               <AnalysisHistory />
