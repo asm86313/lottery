@@ -16,6 +16,7 @@ export default function AnalysisHistory() {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [latestDrawNo, setLatestDrawNo] = useState<number | null>(null);
   const [detailTab, setDetailTab] = useState<"recommended" | "comparison">("recommended");
+  const [filterDrawNo, setFilterDrawNo] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -151,16 +152,37 @@ export default function AnalysisHistory() {
     );
   }
 
+  const uniqueDrawNos = Array.from(new Set(histories.map(h => h.analyzed_draw_no))).sort((a, b) => b - a);
+  const filteredHistories = filterDrawNo
+    ? histories.filter(h => h.analyzed_draw_no === filterDrawNo)
+    : histories;
+
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-lg font-bold text-gray-800">분석 히스토리</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-gray-800">분석 히스토리</h3>
+        {uniqueDrawNos.length > 1 && (
+          <select
+            value={filterDrawNo || "all"}
+            onChange={(e) => setFilterDrawNo(e.target.value === "all" ? null : parseInt(e.target.value, 10))}
+            className="px-3 py-1 border border-gray-300 rounded text-sm font-medium"
+          >
+            <option value="all">전체 회차</option>
+            {uniqueDrawNos.map(drawNo => (
+              <option key={drawNo} value={drawNo}>
+                {drawNo}회차
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       {latestDrawNo !== null && (
         <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-2">
           💡 현재 DB 최신 회차: <strong>{latestDrawNo}회</strong> · 당첨 비교는 분석 회차의 당첨 번호가 업데이트되면 가능합니다
         </div>
       )}
       <div className="space-y-2">
-        {histories.map((h) => {
+        {filteredHistories.map((h) => {
           const canCompare = latestDrawNo !== null && latestDrawNo >= h.analyzed_draw_no;
           return (
             <div
