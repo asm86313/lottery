@@ -133,6 +133,7 @@ function generateRecommendations(
   ctx: HistoricalContext
 ): RecommendedSet[] {
   const sets: RecommendedSet[] = [];
+  const SIMS = 500;
 
   // 복합 점수 계산 (빈도 + 최근성 + 과출현 패널티)
   const scored = stats.map((s) => {
@@ -145,26 +146,35 @@ function generateRecommendations(
     };
   }).sort((a, b) => b.score - a.score);
 
-  // 세트 1: 핫번호 위주 + 밸런스
-  sets.push(buildBalancedSet(hotNumbers.slice(0, 10), stats, ctx, "핫번호 중심 추천"));
+  // 각 전략을 SIMS 회 반복해 가장 많이 뽑힌 6개 번호를 해당 세트의 최종 출력으로 사용
+
+  // 세트 1: 핫번호 위주
+  sets.push(runSimulation(() => buildBalancedSet(hotNumbers.slice(0, 10), stats, ctx, ""), "핫번호 중심 추천", stats, SIMS));
 
   // 세트 2: 복합 점수 상위
   const top20 = scored.slice(0, 20).map((s) => s.number);
-  sets.push(buildBalancedSet(top20, stats, ctx, "복합 점수 상위 추천"));
+  sets.push(runSimulation(() => buildBalancedSet(top20, stats, ctx, ""), "복합 점수 상위 추천", stats, SIMS));
 
   // 세트 3: 장기 미출현 + 핫번호 혼합
   const mixed = [...new Set([...overdueNumbers.slice(0, 5), ...hotNumbers.slice(0, 5)])];
-  sets.push(buildBalancedSet(mixed, stats, ctx, "미출현+핫번호 혼합 추천"));
+  sets.push(runSimulation(() => buildBalancedSet(mixed, stats, ctx, ""), "미출현+핫번호 혼합 추천", stats, SIMS));
 
   // 세트 4: 통계 기반 랜덤
-  sets.push(buildStatWeightedRandom(stats, ctx, "통계 가중 랜덤 추천"));
+  sets.push(runSimulation(() => buildStatWeightedRandom(stats, ctx, ""), "통계 가중 랜덤 추천", stats, SIMS));
 
   // 세트 5: 콜드번호 반등 전략
   const coldMixed = [...coldNumbers.slice(0, 3), ...hotNumbers.slice(0, 7)];
-  sets.push(buildBalancedSet(coldMixed, stats, ctx, "콜드번호 반등 전략"));
+  sets.push(runSimulation(() => buildBalancedSet(coldMixed, stats, ctx, ""), "콜드번호 반등 전략", stats, SIMS));
 
-  // 세트 6: 시뮬레이션 빈출 번호 — 위 전략들을 500회 반복해 가장 많이 뽑힌 번호로 최종 선정
-  sets.push(buildFrequencySimulation(stats, hotNumbers, coldNumbers, overdueNumbers, ctx, scored, 500));
+  // 세트 6: 전체 전략 통합 — 모든 전략의 시뮬레이션을 합산해 가장 많이 뽑힌 번호
+  sets.push(runSimulation(() => {
+    const pick = Math.floor(Math.random() * 5);
+    if (pick === 0) return buildBalancedSet(hotNumbers.slice(0, 10), stats, ctx, "");
+    if (pick === 1) return buildBalancedSet(top20, stats, ctx, "");
+    if (pick === 2) return buildBalancedSet(mixed, stats, ctx, "");
+    if (pick === 3) return buildStatWeightedRandom(stats, ctx, "");
+    return buildBalancedSet(coldMixed, stats, ctx, "");
+  }, "전략 통합 빈출 추천", stats, SIMS * 5));
 
   return sets;
 }
@@ -302,37 +312,28 @@ function calcSetScore(numbers: number[], stats: NumberStat[]): number {
   return Math.round((total / numbers.length) * 10) / 10;
 }
 
-// 기존 5가지 전략을 iterations 회 반복 시뮬레이션해,
-// 가장 많이 뽑힌 상위 번호를 풀로 삼아 최종 세트를 생성한다.
-function buildFrequencySimulation(
+// 전략 함수를 iterations 회 반복해 가장 많이 뽑힌 6개 번호를 최종 출력으로 반환한다.
+function runSimulation(
+  generate: () => RecommendedSet,
+  reason: string,
   stats: NumberStat[],
-  hotNumbers: number[],
-  coldNumbers: number[],
-  overdueNumbers: number[],
-  ctx: HistoricalContext,
-  scored: { number: number; score: number }[],
   iterations: number
 ): RecommendedSet {
   const freq: Record<number, number> = {};
   for (let n = 1; n <= 45; n++) freq[n] = 0;
 
-  const top20 = scored.slice(0, 20).map((s) => s.number);
-  const mixed = [...new Set([...overdueNumbers.slice(0, 5), ...hotNumbers.slice(0, 5)])];
-  const coldMixed = [...coldNumbers.slice(0, 3), ...hotNumbers.slice(0, 7)];
-
   for (let i = 0; i < iterations; i++) {
-    const pools = [hotNumbers.slice(0, 10), top20, mixed, coldMixed];
-    for (const pool of pools) {
-      buildBalancedSet(pool, stats, ctx, "").numbers.forEach((n) => freq[n]++);
-    }
-    buildStatWeightedRandom(stats, ctx, "").numbers.forEach((n) => freq[n]++);
+    generate().numbers.forEach((n) => freq[n]++);
   }
 
-  const topPool = Object.entries(freq)
+  const result = Object.entries(freq)
     .map(([n, c]) => ({ n: Number(n), c }))
     .sort((a, b) => b.c - a.c)
-    .slice(0, 15)
-    .map((x) => x.n);
+    .slice(0, 6)
+    .map((x) => x.n)
+    .sort((a, b) => a - b);
 
-  return buildBalancedSet(topPool, stats, ctx, `시뮬레이션 빈출 번호 추천 (${iterations}회)`);
+  const score = calcSetScore(result, stats);
+  const sum = result.reduce((a, b) => a + b, 0);
+  return { numbers: result, score, reason: `${reason} (합계 ${sum})` };
 }
