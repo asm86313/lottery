@@ -10,11 +10,12 @@ interface ComparisonResultProps {
 }
 
 interface ComparisonData {
-  winningNumbers: number[];
-  matches: MatchResult[];
-  bestMatched: number;
-  bestStrategies: MatchResult[];
-  recommendedSets?: { numbers: number[]; reason: string }[];
+  winningNumbers?: number[];
+  matches?: MatchResult[];
+  bestMatched?: number;
+  bestStrategies?: MatchResult[];
+  recommendedSets: { numbers: number[]; reason: string }[];
+  hasWinning: boolean;
 }
 
 export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultProps) {
@@ -32,6 +33,7 @@ export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultP
             bestMatched: json.bestMatched,
             bestStrategies: json.bestStrategies,
             recommendedSets: json.recommendedSets,
+            hasWinning: json.hasWinning,
           });
         } else {
           setError(json.error);
@@ -83,17 +85,26 @@ export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultP
       )}
 
       {/* 당첨 번호 */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
-        <h4 className="font-bold text-gray-800 mb-3">당첨 번호 (회차 {drawNo + 1})</h4>
-        <div className="flex gap-2 flex-wrap">
-          {data.winningNumbers.map((n) => (
-            <NumberBall key={n} number={n} size="md" highlight />
-          ))}
+      {data.hasWinning && data.winningNumbers ? (
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <h4 className="font-bold text-gray-800 mb-3">당첨 번호 (회차 {drawNo + 1})</h4>
+          <div className="flex gap-2 flex-wrap">
+            {data.winningNumbers.map((n) => (
+              <NumberBall key={n} number={n} size="md" highlight />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <h4 className="font-bold text-amber-900 mb-2">⏳ 당첨 번호 대기 중</h4>
+          <p className="text-sm text-amber-800">
+            {drawNo + 1}회차의 당첨 번호가 업데이트되면 비교 결과를 볼 수 있습니다.
+          </p>
+        </div>
+      )}
 
       {/* 최고 성적 전략 */}
-      {data.bestStrategies.length > 0 && (
+      {data.hasWinning && data.bestStrategies && data.bestStrategies.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <h4 className="font-bold text-amber-900 mb-3">
             🏆 최고 성적: {data.bestMatched}개 맞춤
@@ -128,6 +139,7 @@ export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultP
       )}
 
       {/* 모든 전략 비교 */}
+      {data.hasWinning && data.matches && (
       <div className="bg-white rounded-xl border border-gray-100 p-4">
         <h4 className="font-bold text-gray-800 mb-3">전체 전략 비교</h4>
         <div className="space-y-3">
@@ -168,6 +180,7 @@ export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultP
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

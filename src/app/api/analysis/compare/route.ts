@@ -24,33 +24,30 @@ export async function GET(req: NextRequest) {
 
     const allDraws = await getDrawsFromDb();
     const targetDraw = allDraws.find((d) => d.drwNo === targetDrawNo + 1);
-    if (!targetDraw) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `아직 ${targetDrawNo + 1}회차의 당첨 번호가 업데이트되지 않았습니다. 당첨 번호가 나온 후 비교해주세요.`,
-        },
-        { status: 404 }
-      );
-    }
 
-    const winningNumbers = getNumbersFromDraw(targetDraw);
-    const matches: MatchResult[] = analysis.recommended_sets.map(
-      (set, index) => {
-        const matched = set.numbers.filter((n) => winningNumbers.includes(n));
+    // 당첨 번호가 없어도 추천 세트는 반환
+    let winningNumbers: number[] | undefined;
+    let matches: MatchResult[] | undefined;
+    let maxMatched: number | undefined;
+    let bestStrategies: MatchResult[] | undefined;
+
+    if (targetDraw) {
+      winningNumbers = getNumbersFromDraw(targetDraw);
+      matches = analysis.recommended_sets.map((set, index) => {
+        const matched = set.numbers.filter((n) => winningNumbers!.includes(n));
         return {
           recommended_set_index: index,
           strategy_name: set.reason.split("(")[0].trim(),
           recommended_numbers: set.numbers,
-          winning_numbers: winningNumbers,
+          winning_numbers: winningNumbers!,
           matched_count: matched.length,
           matched_numbers: matched,
         };
-      }
-    );
+      });
 
-    const maxMatched = Math.max(...matches.map((m) => m.matched_count), 0);
-    const bestStrategies = matches.filter((m) => m.matched_count === maxMatched);
+      maxMatched = Math.max(...matches.map((m) => m.matched_count), 0);
+      bestStrategies = matches.filter((m) => m.matched_count === maxMatched);
+    }
 
     return NextResponse.json({
       success: true,
@@ -61,6 +58,7 @@ export async function GET(req: NextRequest) {
       bestMatched: maxMatched,
       bestStrategies,
       recommendedSets: analysis.recommended_sets,
+      hasWinning: !!targetDraw,
     });
   } catch (error) {
     return NextResponse.json(
