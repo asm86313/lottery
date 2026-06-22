@@ -1,5 +1,5 @@
 import { analyzeDraws } from "@/lib/analysis";
-import { getMaxDrawNo, getDrawsFromDb } from "@/lib/lotteryDb";
+import { getMaxDrawNo, getDrawsFromDb, saveAnalysis } from "@/lib/lotteryDb";
 import { fetchLatestDrawNo } from "@/lib/lotteryApi";
 
 export async function GET() {
@@ -26,6 +26,9 @@ export async function GET() {
         const savedInDb = await getMaxDrawNo();
         const latestDrawNo = fetchLatestDrawNo();
 
+        // 분석 결과 저장
+        const analysisId = await saveAnalysis(savedInDb, result.recommendedSets);
+
         send({
           type: "result",
           success: true,
@@ -35,6 +38,7 @@ export async function GET() {
             savedInDb,
             analyzedCount: draws.length,
             newlyFetched: 0,
+            analysisId,
           },
         });
       } catch (error) {

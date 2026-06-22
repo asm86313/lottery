@@ -23,3 +23,19 @@ CREATE POLICY "public read"
 
 -- 인덱스 (날짜 범위 조회 대비)
 CREATE INDEX IF NOT EXISTS idx_lottery_draws_date ON lottery_draws (drw_no_date);
+
+-- 분석 결과 저장 테이블
+CREATE TABLE IF NOT EXISTS analysis_results (
+  id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  analyzed_draw_no INTEGER      NOT NULL,
+  recommended_sets JSONB        NOT NULL,
+  created_at       TIMESTAMPTZ  DEFAULT NOW()
+);
+
+ALTER TABLE analysis_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "public read analysis results"
+  ON analysis_results FOR SELECT
+  USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_results_draw ON analysis_results (analyzed_draw_no);

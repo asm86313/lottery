@@ -8,8 +8,9 @@ import FrequencyChart from "@/components/FrequencyChart";
 import RecommendedSets from "@/components/RecommendedSets";
 import HistoryTable from "@/components/HistoryTable";
 import CsvImport from "@/components/CsvImport";
+import AnalysisHistory from "@/components/AnalysisHistory";
 
-type Tab = "recommend" | "analysis" | "history";
+type Tab = "recommend" | "analysis" | "history" | "analysis-compare";
 
 interface MissingInfo {
   missingDrawNos: number[];
@@ -275,6 +276,7 @@ export default function Home() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "recommend", label: "🎯 추천 번호" },
     { key: "analysis", label: "📊 통계 분석" },
+    { key: "analysis-compare", label: "✅ 당첨 비교" },
     { key: "history", label: "📋 당첨 이력" },
   ];
 
@@ -497,6 +499,10 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {tab === "analysis-compare" && (
+              <AnalysisHistory />
             )}
 
             {tab === "history" && (

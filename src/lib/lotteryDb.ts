@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabase";
-import { LotteryDraw } from "@/types/lottery";
+import { LotteryDraw, RecommendedSet, SavedAnalysis } from "@/types/lottery";
 
 export interface DbRow {
   drw_no: number;
@@ -100,4 +100,58 @@ export async function upsertDraws(draws: LotteryDraw[]): Promise<void> {
       .upsert(chunk, { onConflict: "drw_no" });
     if (error) throw new Error(`DB upsert 실패: ${error.message}`);
   }
+}
+
+/** 분석 결과 저장 */
+export async function saveAnalysis(
+  analyzedDrawNo: number,
+  recommendedSets: RecommendedSet[]
+): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("analysis_results")
+    .insert({
+      analyzed_draw_no: analyzedDrawNo,
+      recommended_sets: recommendedSets,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(`분석 결과 저장 실패: ${error.message}`);
+  return data?.id || "";
+}
+
+/** 특정 회차의 분석 결과 조회 */
+export async function getAnalysisByDrawNo(drawNo: number): Promise<SavedAnalysis | null> {
+  const { data, error } = await supabaseAdmin
+    .from("analysis_results")
+    .select("id, analyzed_draw_no, created_at, recommended_sets")
+    .eq("analyzed_draw_no", drawNo)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    analyzed_draw_no: data.analyzed_draw_no,
+    created_at: data.created_at,
+    recommended_sets: data.recommended_sets,
+  };
+}
+
+/** 최근 분석 결과 조회 */
+export async function getRecentAnalyses(limit: number = 10): Promise<SavedAnalysis[]> {
+  const { data, error } = await supabaseAdmin
+    .from("analysis_results")
+    .select("id, analyzed_draw_no, created_at, recommended_sets")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id,
+    analyzed_draw_no: row.analyzed_draw_no,
+    created_at: row.created_at,
+    recommended_sets: row.recommended_sets,
+  }));
 }

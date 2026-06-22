@@ -6,6 +6,7 @@ interface NumberBallProps {
   variant?: "default" | "hot" | "cold" | "bonus" | "overdue";
   showCount?: boolean;
   count?: number;
+  highlight?: boolean;
 }
 
 function getBallColor(number: number): string {
@@ -28,18 +29,20 @@ export default function NumberBall({
   variant = "default",
   showCount,
   count,
+  highlight,
 }: NumberBallProps) {
   const base = getBallColor(number);
-  const variantRing =
-    variant === "hot"
-      ? "ring-2 ring-orange-400 ring-offset-1 shadow-orange-200 shadow-md"
-      : variant === "cold"
-      ? "ring-2 ring-sky-300 ring-offset-1 shadow-sky-100 shadow-md"
-      : variant === "overdue"
-      ? "ring-2 ring-purple-400 ring-offset-1 shadow-purple-200 shadow-md"
-      : variant === "bonus"
-      ? "ring-2 ring-gray-400 ring-offset-1"
-      : "";
+  const variantRing = highlight
+    ? "ring-4 ring-yellow-300 ring-offset-2 shadow-yellow-200 shadow-lg scale-110"
+    : variant === "hot"
+    ? "ring-2 ring-orange-400 ring-offset-1 shadow-orange-200 shadow-md"
+    : variant === "cold"
+    ? "ring-2 ring-sky-300 ring-offset-1 shadow-sky-100 shadow-md"
+    : variant === "overdue"
+    ? "ring-2 ring-purple-400 ring-offset-1 shadow-purple-200 shadow-md"
+    : variant === "bonus"
+    ? "ring-2 ring-gray-400 ring-offset-1"
+    : "";
 
   return (
     <div className="flex flex-col items-center gap-0.5">

@@ -34,3 +34,19 @@ export interface RecommendedSet {
   score: number;
   reason: string;
 }
+
+export interface SavedAnalysis {
+  id: string;
+  analyzed_draw_no: number; // 분석 기준 회차
+  created_at: string;
+  recommended_sets: RecommendedSet[];
+}
+
+export interface MatchResult {
+  recommended_set_index: number; // 0~9 중 몇 번째 전략
+  strategy_name: string;
+  recommended_numbers: number[];
+  winning_numbers: number[];
+  matched_count: number; // 맞춘 개수
+  matched_numbers: number[];
+}
