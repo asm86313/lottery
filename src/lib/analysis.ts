@@ -163,6 +163,9 @@ function generateRecommendations(
   const coldMixed = [...coldNumbers.slice(0, 3), ...hotNumbers.slice(0, 7)];
   sets.push(buildBalancedSet(coldMixed, stats, ctx, "콜드번호 반등 전략"));
 
+  // 세트 6: 시뮬레이션 빈출 번호 — 위 전략들을 500회 반복해 가장 많이 뽑힌 번호로 최종 선정
+  sets.push(buildFrequencySimulation(stats, hotNumbers, coldNumbers, overdueNumbers, ctx, scored, 500));
+
   return sets;
 }
 
@@ -297,4 +300,39 @@ function calcSetScore(numbers: number[], stats: NumberStat[]): number {
     return sum + (s ? s.frequency : 0);
   }, 0);
   return Math.round((total / numbers.length) * 10) / 10;
+}
+
+// 기존 5가지 전략을 iterations 회 반복 시뮬레이션해,
+// 가장 많이 뽑힌 상위 번호를 풀로 삼아 최종 세트를 생성한다.
+function buildFrequencySimulation(
+  stats: NumberStat[],
+  hotNumbers: number[],
+  coldNumbers: number[],
+  overdueNumbers: number[],
+  ctx: HistoricalContext,
+  scored: { number: number; score: number }[],
+  iterations: number
+): RecommendedSet {
+  const freq: Record<number, number> = {};
+  for (let n = 1; n <= 45; n++) freq[n] = 0;
+
+  const top20 = scored.slice(0, 20).map((s) => s.number);
+  const mixed = [...new Set([...overdueNumbers.slice(0, 5), ...hotNumbers.slice(0, 5)])];
+  const coldMixed = [...coldNumbers.slice(0, 3), ...hotNumbers.slice(0, 7)];
+
+  for (let i = 0; i < iterations; i++) {
+    const pools = [hotNumbers.slice(0, 10), top20, mixed, coldMixed];
+    for (const pool of pools) {
+      buildBalancedSet(pool, stats, ctx, "").numbers.forEach((n) => freq[n]++);
+    }
+    buildStatWeightedRandom(stats, ctx, "").numbers.forEach((n) => freq[n]++);
+  }
+
+  const topPool = Object.entries(freq)
+    .map(([n, c]) => ({ n: Number(n), c }))
+    .sort((a, b) => b.c - a.c)
+    .slice(0, 15)
+    .map((x) => x.n);
+
+  return buildBalancedSet(topPool, stats, ctx, `시뮬레이션 빈출 번호 추천 (${iterations}회)`);
 }
