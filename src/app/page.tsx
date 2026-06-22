@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { AnalysisResult } from "@/types/lottery";
 import StatsSummary from "@/components/StatsSummary";
 import HotColdPanel from "@/components/HotColdPanel";
@@ -203,6 +203,46 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("recommend");
   const [progress, setProgress] = useState("");
   const [missingModal, setMissingModal] = useState<MissingInfo | null>(null);
+  const [hasAnalysisHistory, setHasAnalysisHistory] = useState(false);
+  const [hasLotteryData, setHasLotteryData] = useState(false);
+
+  const loadLatestAnalysis = useCallback(async () => {
+    try {
+      const res = await fetch("/api/analysis/history?limit=1");
+      const json = await res.json();
+      if (json.success && json.data.length > 0) {
+        const latestAnalysis = json.data[0];
+        const mockData: AnalysisResult = {
+          totalDraws: 0,
+          latestDrawNo: latestAnalysis.analyzed_draw_no,
+          numberStats: [],
+          hotNumbers: [],
+          coldNumbers: [],
+          overdueNumbers: [],
+          recommendedSets: latestAnalysis.recommended_sets,
+          recentDraws: [],
+        };
+        setData(mockData);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/analysis/exists").then((res) => res.json()),
+      fetch("/api/lottery/exists").then((res) => res.json()),
+    ])
+      .then(([analysisRes, lotteryRes]) => {
+        if (analysisRes.success && analysisRes.exists) {
+          setHasAnalysisHistory(true);
+          loadLatestAnalysis();
+        }
+        if (lotteryRes.success && lotteryRes.exists) {
+          setHasLotteryData(true);
+        }
+      })
+      .catch(() => {});
+  }, [loadLatestAnalysis]);
 
   const doAnalysis = useCallback(async () => {
     setMissingModal(null);
@@ -377,22 +417,28 @@ export default function Home() {
           <div className="flex flex-col gap-6">
             {/* 탭 */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
-              {tabs.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    tab === t.key
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : t.requiresAnalysis
-                      ? "text-gray-400 cursor-not-allowed"
-                      : "text-gray-700 hover:text-gray-700"
-                  }`}
-                  disabled={t.requiresAnalysis}
-                >
-                  {t.label}
-                </button>
-              ))}
+              {tabs.map((t) => {
+                const isDisabled =
+                  t.requiresAnalysis &&
+                  !data &&
+                  !(t.key === "history" && hasLotteryData);
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setTab(t.key)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      tab === t.key
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : isDisabled
+                        ? "text-gray-400 cursor-not-allowed"
+                        : "text-gray-700 hover:text-gray-700"
+                    }`}
+                    disabled={isDisabled}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* 분석 필요 안내 */}
