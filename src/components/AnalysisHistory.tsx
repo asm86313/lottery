@@ -91,7 +91,7 @@ export default function AnalysisHistory() {
                   : "text-gray-700 hover:text-gray-700"
               }`}
             >
-              ✅ 당첨 비교
+              📋 상세확인
             </button>
           </div>
           <button
@@ -119,7 +119,7 @@ export default function AnalysisHistory() {
           {detailTab === "comparison" && (
             <div>
               <h3 className="text-lg font-bold text-gray-800 mb-4">
-                ✅ 당첨 비교 결과
+                당첨 비교
               </h3>
               <ComparisonResult
                 drawNo={selectedDrawNo}
