@@ -14,6 +14,7 @@ interface ComparisonData {
   matches: MatchResult[];
   bestMatched: number;
   bestStrategies: MatchResult[];
+  recommendedSets?: { numbers: number[]; reason: string }[];
 }
 
 export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultProps) {
@@ -30,6 +31,7 @@ export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultP
             matches: json.matches,
             bestMatched: json.bestMatched,
             bestStrategies: json.bestStrategies,
+            recommendedSets: json.recommendedSets,
           });
         } else {
           setError(json.error);
@@ -56,6 +58,30 @@ export default function ComparisonResult({ drawNo, onLoaded }: ComparisonResultP
 
   return (
     <div className="flex flex-col gap-6">
+      {/* 추천 번호 10개 세트 */}
+      {data.recommendedSets && data.recommendedSets.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <h4 className="font-bold text-gray-800 mb-4">분석 결과 (10가지 추천 번호)</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {data.recommendedSets.map((set, idx) => (
+              <div key={idx} className="border border-gray-200 rounded p-2">
+                <div className="text-xs font-semibold text-gray-700 mb-2">
+                  <span className="inline-block w-5 h-5 bg-indigo-600 text-white rounded-full text-center text-[10px] leading-5 mr-1">
+                    {idx + 1}
+                  </span>
+                  {set.reason}
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {set.numbers.map((n) => (
+                    <NumberBall key={n} number={n} size="sm" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 당첨 번호 */}
       <div className="bg-white rounded-xl border border-gray-100 p-4">
         <h4 className="font-bold text-gray-800 mb-3">당첨 번호 (회차 {drawNo + 1})</h4>

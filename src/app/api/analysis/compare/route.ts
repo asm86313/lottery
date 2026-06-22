@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
     const targetDraw = allDraws.find((d) => d.drwNo === targetDrawNo + 1);
     if (!targetDraw) {
       return NextResponse.json(
-        { success: false, error: "해당 회차의 당첨 번호가 없습니다" },
+        {
+          success: false,
+          error: `아직 ${targetDrawNo + 1}회차의 당첨 번호가 업데이트되지 않았습니다. 당첨 번호가 나온 후 비교해주세요.`,
+        },
         { status: 404 }
       );
     }
@@ -57,6 +60,7 @@ export async function GET(req: NextRequest) {
       matches,
       bestMatched: maxMatched,
       bestStrategies,
+      recommendedSets: analysis.recommended_sets,
     });
   } catch (error) {
     return NextResponse.json(
