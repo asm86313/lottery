@@ -493,17 +493,27 @@ export default function Home() {
 
             {tab === "recommend" && (
               <div className="flex flex-col gap-6">
-                <HotColdPanel
-                  hotNumbers={data.hotNumbers}
-                  coldNumbers={data.coldNumbers}
-                  overdueNumbers={data.overdueNumbers}
-                  stats={data.numberStats}
-                />
+                {data.numberStats && data.numberStats.length > 0 && (
+                  <HotColdPanel
+                    hotNumbers={data.hotNumbers}
+                    coldNumbers={data.coldNumbers}
+                    overdueNumbers={data.overdueNumbers}
+                    stats={data.numberStats}
+                  />
+                )}
                 <div>
                   <h2 className="text-base font-bold text-gray-800 mb-3">
-                    추천 번호 세트
+                    {data.numberStats && data.numberStats.length > 0
+                      ? "추천 번호 세트"
+                      : "추천 번호"}
                   </h2>
-                  <RecommendedSets sets={data.recommendedSets} />
+                  {data.recommendedSets && data.recommendedSets.length > 0 ? (
+                    <RecommendedSets sets={data.recommendedSets} />
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 text-center text-gray-500">
+                      추천 번호 데이터를 불러올 수 없습니다.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
