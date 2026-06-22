@@ -15,6 +15,7 @@ export default function AnalysisHistory() {
   const [selectedDrawNo, setSelectedDrawNo] = useState<number | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [latestDrawNo, setLatestDrawNo] = useState<number | null>(null);
+  const [detailTab, setDetailTab] = useState<"recommended" | "comparison">("recommended");
 
   useEffect(() => {
     Promise.all([
@@ -69,21 +70,63 @@ export default function AnalysisHistory() {
   if (selectedDrawNo !== null) {
     return (
       <div className="space-y-6">
-        {/* 비교 결과 */}
-        <div className="bg-white rounded-xl border border-indigo-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-800">당첨 비교 결과</h3>
+        {/* 탭 */}
+        <div className="flex gap-2 items-center">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
             <button
-              onClick={() => setSelectedDrawNo(null)}
-              className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+              onClick={() => setDetailTab("recommended")}
+              className={`px-4 py-2 rounded text-sm font-medium transition-all ${
+                detailTab === "recommended"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-gray-700 hover:text-gray-700"
+              }`}
             >
-              ← 목록으로
+              🎯 추천 번호
+            </button>
+            <button
+              onClick={() => setDetailTab("comparison")}
+              className={`px-4 py-2 rounded text-sm font-medium transition-all ${
+                detailTab === "comparison"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-gray-700 hover:text-gray-700"
+              }`}
+            >
+              ✅ 당첨 비교
             </button>
           </div>
-          <ComparisonResult
-            drawNo={selectedDrawNo}
-            onLoaded={() => setComparisonLoading(false)}
-          />
+          <button
+            onClick={() => setSelectedDrawNo(null)}
+            className="ml-auto px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+          >
+            ← 목록으로
+          </button>
+        </div>
+
+        {/* 상세 정보 */}
+        <div className="bg-white rounded-xl border border-indigo-200 p-6">
+          {detailTab === "recommended" && (
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">
+                🎯 {selectedDrawNo}회 추천 번호
+              </h3>
+              <ComparisonResult
+                drawNo={selectedDrawNo}
+                onLoaded={() => setComparisonLoading(false)}
+                showOnlyRecommended
+              />
+            </div>
+          )}
+          {detailTab === "comparison" && (
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">
+                ✅ 당첨 비교 결과
+              </h3>
+              <ComparisonResult
+                drawNo={selectedDrawNo}
+                onLoaded={() => setComparisonLoading(false)}
+              />
+            </div>
+          )}
         </div>
 
         {/* 분석 히스토리 목록 (배경에 표시) */}
