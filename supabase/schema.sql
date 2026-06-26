@@ -39,3 +39,36 @@ CREATE POLICY "public read analysis results"
   USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_analysis_results_draw ON analysis_results (analyzed_draw_no);
+
+-- ── 연금복권720+ ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS pension_draws (
+  drw_no       INTEGER      PRIMARY KEY,
+  group_no     SMALLINT     NOT NULL CHECK (group_no BETWEEN 1 AND 5),
+  win_number   CHAR(6)      NOT NULL,
+  created_at   TIMESTAMPTZ  DEFAULT NOW()
+);
+
+ALTER TABLE pension_draws ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "public read pension draws"
+  ON pension_draws FOR SELECT
+  USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_pension_draws_drw_no ON pension_draws (drw_no);
+
+-- 연금복권 분석 결과 저장 테이블
+CREATE TABLE IF NOT EXISTS pension_analysis_results (
+  id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  analyzed_draw_no  INTEGER      NOT NULL,
+  recommended_sets  JSONB        NOT NULL,
+  created_at        TIMESTAMPTZ  DEFAULT NOW()
+);
+
+ALTER TABLE pension_analysis_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "public read pension analysis results"
+  ON pension_analysis_results FOR SELECT
+  USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_pension_analysis_draw ON pension_analysis_results (analyzed_draw_no);

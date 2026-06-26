@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { AnalysisResult } from "@/types/lottery";
+import { AnalysisResult, PensionAnalysisResult } from "@/types/lottery";
 import StatsSummary from "@/components/StatsSummary";
 import HotColdPanel from "@/components/HotColdPanel";
 import FrequencyChart from "@/components/FrequencyChart";
@@ -9,11 +9,20 @@ import RecommendedSets from "@/components/RecommendedSets";
 import HistoryTable from "@/components/HistoryTable";
 import CsvImport from "@/components/CsvImport";
 import AnalysisHistory from "@/components/AnalysisHistory";
-import LotteryHistoryViewer from "@/components/LotteryHistoryViewer";
 import NumberStatsViewer from "@/components/NumberStatsViewer";
-import DrawSearcher from "@/components/DrawSearcher";
+import BacktestPanel from "@/components/BacktestPanel";
+import CalibratedAnalysisPanel from "@/components/CalibratedAnalysisPanel";
+import PensionCsvImport from "@/components/PensionCsvImport";
+import PensionHistoryTable from "@/components/PensionHistoryTable";
+import PensionRecommendedSets from "@/components/PensionRecommendedSets";
+import PensionAnalysisHistory from "@/components/PensionAnalysisHistory";
+import PensionManualEntryModal from "@/components/PensionManualEntryModal";
+import PensionBacktestPanel from "@/components/PensionBacktestPanel";
+import PensionCalibratedPanel from "@/components/PensionCalibratedPanel";
 
-type Tab = "recommend" | "analysis" | "history" | "analysis-compare" | "lottery-history" | "number-stats" | "draw-search";
+type Tab = "recommend" | "analysis" | "history" | "analysis-compare" | "number-stats" | "backtest" | "calibrated";
+type PensionTab = "import" | "recommend" | "history" | "analysis-history" | "backtest" | "calibrated";
+type AppMode = "lotto" | "pension";
 
 interface MissingInfo {
   missingDrawNos: number[];
@@ -196,6 +205,9 @@ function ManualEntryModal({
 }
 
 export default function Home() {
+  const [mode, setMode] = useState<AppMode>("lotto");
+
+  // ── 로또 상태 ──────────────────────────────────────────────────────────────
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [meta, setMeta] = useState<{ latestDrawNo: number; savedInDb: number; analyzedCount: number; newlyFetched: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -203,8 +215,17 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("recommend");
   const [progress, setProgress] = useState("");
   const [missingModal, setMissingModal] = useState<MissingInfo | null>(null);
-  const [hasAnalysisHistory, setHasAnalysisHistory] = useState(false);
-  const [hasLotteryData, setHasLotteryData] = useState(false);
+
+  // ── 연금복권 상태 ─────────────────────────────────────────────────────────
+  const [pensionTab, setPensionTab] = useState<PensionTab>("import");
+  const [pensionData, setPensionData] = useState<PensionAnalysisResult | null>(null);
+  const [pensionLoading, setPensionLoading] = useState(false);
+  const [pensionError, setPensionError] = useState<string | null>(null);
+  const [pensionHasData, setPensionHasData] = useState(false);
+  const [pensionMissingModal, setPensionMissingModal] = useState<{
+    missingDrawNos: number[];
+    latestDrawNo: number;
+  } | null>(null);
 
   const loadLatestAnalysis = useCallback(async () => {
     try {
@@ -221,24 +242,66 @@ export default function Home() {
           overdueNumbers: [],
           recommendedSets: latestAnalysis.recommended_sets,
           recentDraws: [],
+          markovNextProbs: [],
         };
         setData(mockData);
       }
     } catch {}
   }, []);
 
+  // 실제 분석 실행 (누락 확인 후 호출)
+  const runPensionAnalysis = useCallback(async () => {
+    setPensionMissingModal(null);
+    setPensionLoading(true);
+    setPensionError(null);
+    try {
+      const res = await fetch("/api/pension/analyze");
+      const json = await res.json();
+      if (json.success) {
+        setPensionData(json.data);
+        setPensionTab("recommend");
+        fetch("/api/pension/analysis/save", { method: "POST" }).catch(() => {});
+      } else {
+        setPensionError(json.error ?? "분석 실패");
+      }
+    } catch (e) {
+      setPensionError(e instanceof Error ? e.message : "알 수 없는 오류");
+    } finally {
+      setPensionLoading(false);
+    }
+  }, []);
+
+  // 분석 시작 전 누락 회차 확인
+  const startPensionAnalysis = useCallback(async () => {
+    setPensionLoading(true);
+    try {
+      const res = await fetch("/api/pension/check-missing");
+      const json = await res.json();
+      setPensionLoading(false);
+      if (json.success && json.missingDrawNos.length > 0) {
+        setPensionMissingModal({
+          missingDrawNos: json.missingDrawNos,
+          latestDrawNo: json.latestDrawNo,
+        });
+        return;
+      }
+    } catch {
+      setPensionLoading(false);
+    }
+    runPensionAnalysis();
+  }, [runPensionAnalysis]);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/analysis/exists").then((res) => res.json()),
-      fetch("/api/lottery/exists").then((res) => res.json()),
+      fetch("/api/pension/exists").then((res) => res.json()),
     ])
-      .then(([analysisRes, lotteryRes]) => {
+      .then(([analysisRes, pensionRes]) => {
         if (analysisRes.success && analysisRes.exists) {
-          setHasAnalysisHistory(true);
           loadLatestAnalysis();
         }
-        if (lotteryRes.success && lotteryRes.exists) {
-          setHasLotteryData(true);
+        if (pensionRes.success && pensionRes.exists) {
+          setPensionHasData(true);
         }
       })
       .catch(() => {});
@@ -317,41 +380,81 @@ export default function Home() {
   }, [doAnalysis]);
 
   const tabs: { key: Tab; label: string; requiresAnalysis: boolean }[] = [
-    { key: "lottery-history", label: "🎲 당첨 번호 조회", requiresAnalysis: false },
     { key: "number-stats", label: "📈 번호별 통계", requiresAnalysis: false },
-    { key: "draw-search", label: "🔍 회차 검색", requiresAnalysis: false },
     { key: "recommend", label: "🎯 추천 번호", requiresAnalysis: true },
     { key: "analysis", label: "📊 통계 분석", requiresAnalysis: true },
     { key: "analysis-compare", label: "✅ 당첨 비교", requiresAnalysis: true },
     { key: "history", label: "📋 당첨 이력", requiresAnalysis: true },
+    { key: "backtest",    label: "🧪 백테스트",  requiresAnalysis: false },
+    { key: "calibrated", label: "🔬 보정 분석", requiresAnalysis: false },
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              🍀 로또 번호 분석기
-            </h1>
-            <p className="text-xs text-gray-700 mt-0.5">
-              동행복권 전체 회차 데이터 기반 통계 분석
-            </p>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                {mode === "lotto" ? "🍀 로또 분석기" : "🎫 연금복권 분석기"}
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {mode === "lotto"
+                  ? "동행복권 전체 회차 데이터 기반 통계 분석"
+                  : "연금복권720+ 자리별 빈도 기반 통계 분석"}
+              </p>
+            </div>
+            {/* 모드 전환 */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
+              <button
+                onClick={() => setMode("lotto")}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  mode === "lotto"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🍀 로또
+              </button>
+              <button
+                onClick={() => setMode("pension")}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  mode === "pension"
+                    ? "bg-green-600 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🎫 연금복권
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            {meta && (
-              <span className="text-xs text-gray-600 hidden sm:block">
-                DB {meta.savedInDb}회 · 분석 {meta.analyzedCount}회
-              </span>
+          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+            {mode === "lotto" && (
+              <>
+                {meta && (
+                  <span className="text-xs text-gray-600 hidden sm:block">
+                    DB {meta.savedInDb}회 · 분석 {meta.analyzedCount}회
+                  </span>
+                )}
+                <button
+                  onClick={() => startAnalysis()}
+                  disabled={loading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "분석 중..." : "분석"}
+                </button>
+              </>
             )}
-            <button
-              onClick={() => startAnalysis()}
-              disabled={loading}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "분석 중..." : "분석"}
-            </button>
+            {mode === "pension" && pensionHasData && (
+              <button
+                onClick={startPensionAnalysis}
+                disabled={pensionLoading}
+                className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pensionLoading ? "분석 중..." : "분석"}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -365,6 +468,143 @@ export default function Home() {
         />
       )}
 
+      {/* ── 연금복권 섹션 ────────────────────────────────────────────────── */}
+      {mode === "pension" && (
+        <main className="max-w-5xl mx-auto px-4 py-6">
+          {/* 누락 회차 입력 모달 */}
+          {pensionMissingModal && (
+            <PensionManualEntryModal
+              missingDrawNos={pensionMissingModal.missingDrawNos}
+              latestDrawNo={pensionMissingModal.latestDrawNo}
+              onSaved={() => setPensionHasData(true)}
+              onDone={runPensionAnalysis}
+            />
+          )}
+
+          {/* 탭 */}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6">
+            {(
+              [
+                { key: "import",           label: "📥 데이터 입력" },
+                { key: "recommend",        label: "🎯 추천 번호" },
+                { key: "history",          label: "🎲 당첨 이력" },
+                { key: "analysis-history", label: "📋 분석 이력" },
+                { key: "backtest",         label: "🧪 백테스트" },
+                { key: "calibrated",       label: "🔬 보정 분석" },
+              ] as { key: PensionTab; label: string }[]
+            ).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setPensionTab(t.key)}
+                disabled={t.key !== "import" && !pensionHasData}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  pensionTab === t.key
+                    ? "bg-white text-green-600 shadow-sm"
+                    : t.key !== "import" && !pensionHasData
+                    ? "text-gray-400 cursor-not-allowed"
+                    : "text-gray-700 hover:text-gray-700"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 데이터 입력 탭 */}
+          {pensionTab === "import" && (
+            <div className="max-w-lg">
+              <PensionCsvImport
+                onImported={() => {
+                  setPensionHasData(true);
+                  startPensionAnalysis();
+                }}
+              />
+            </div>
+          )}
+
+          {/* 추천 번호 탭 */}
+          {pensionTab === "recommend" && (
+            <>
+              {pensionLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" />
+                  <p className="text-gray-600 font-medium">분석 중...</p>
+                </div>
+              )}
+              {pensionError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                  <p className="text-red-600 font-medium">⚠️ {pensionError}</p>
+                  <button
+                    onClick={runPensionAnalysis}
+                    className="mt-3 text-sm text-red-500 underline"
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              )}
+              {!pensionLoading && !pensionError && pensionData && (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+                    <span className="text-green-700 font-bold text-sm">
+                      총 {pensionData.totalDraws}회차 데이터 분석
+                    </span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-gray-600 text-sm">
+                      최신 회차 {pensionData.latestDrawNo}회
+                    </span>
+                  </div>
+                  <PensionRecommendedSets
+                    recommendations={pensionData.recommendations}
+                    digitStats={pensionData.digitStats}
+                    groupStats={pensionData.groupStats}
+                    lastDraw={pensionData.lastDraw}
+                    markovNextProbs={pensionData.markovNextProbs}
+                  />
+                </div>
+              )}
+              {!pensionLoading && !pensionError && !pensionData && pensionHasData && (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 mb-4">분석 버튼을 눌러 추천 번호를 생성하세요.</p>
+                  <button
+                    onClick={startPensionAnalysis}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    분석 시작하기
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 당첨 이력 탭 */}
+          {pensionTab === "history" && pensionData && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <h2 className="text-base font-bold text-gray-800 mb-4">최근 당첨번호</h2>
+              <PensionHistoryTable draws={pensionData.recentDraws} />
+            </div>
+          )}
+
+          {/* 분석 이력 탭 */}
+          {pensionTab === "analysis-history" && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <PensionAnalysisHistory />
+            </div>
+          )}
+
+          {/* 백테스트 탭 */}
+          {pensionTab === "backtest" && <PensionBacktestPanel />}
+
+          {/* 보정 분석 탭 */}
+          {pensionTab === "calibrated" && <PensionCalibratedPanel />}
+
+          <p className="text-xs text-gray-400 text-center pb-4 mt-6">
+            ※ 이 프로그램은 통계 분석 기반 참고용이며, 당첨을 보장하지 않습니다.
+          </p>
+        </main>
+      )}
+
+      {/* ── 로또 섹션 ────────────────────────────────────────────────────── */}
+      {mode === "lotto" && (
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* 초기 상태 */}
         {!data && !loading && !error && !missingModal && (
@@ -418,10 +658,7 @@ export default function Home() {
             {/* 탭 */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
               {tabs.map((t) => {
-                const isDisabled =
-                  t.requiresAnalysis &&
-                  !data &&
-                  !(t.key === "history" && hasLotteryData);
+                const isDisabled = t.requiresAnalysis && !data;
                 return (
                   <button
                     key={t.key}
@@ -442,9 +679,7 @@ export default function Home() {
             </div>
 
             {/* 분석 필요 안내 */}
-            {tab !== "lottery-history" &&
-              tab !== "number-stats" &&
-              tab !== "draw-search" && (
+            {tab !== "number-stats" && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6 text-center">
                   <p className="text-indigo-700 font-medium mb-3">📊 분석이 필요합니다</p>
                   <p className="text-sm text-indigo-600 mb-4">
@@ -460,9 +695,9 @@ export default function Home() {
               )}
 
             {/* 탭 컨텐츠 */}
-            {tab === "lottery-history" && <LotteryHistoryViewer />}
             {tab === "number-stats" && <NumberStatsViewer />}
-            {tab === "draw-search" && <DrawSearcher />}
+            {tab === "backtest" && <BacktestPanel />}
+            {tab === "calibrated" && <CalibratedAnalysisPanel />}
           </div>
         )}
 
@@ -611,11 +846,11 @@ export default function Home() {
               </div>
             )}
 
-            {tab === "lottery-history" && <LotteryHistoryViewer />}
-
             {tab === "number-stats" && <NumberStatsViewer />}
 
-            {tab === "draw-search" && <DrawSearcher />}
+            {tab === "backtest" && <BacktestPanel />}
+
+            {tab === "calibrated" && <CalibratedAnalysisPanel />}
 
             {tab === "analysis-compare" && (
               <AnalysisHistory />
@@ -636,6 +871,7 @@ export default function Home() {
           </div>
         )}
       </main>
+      )}
     </div>
   );
 }

@@ -57,6 +57,8 @@ export async function GET() {
         lastAppeared,
         lastDrawNo,
         gap,
+        zScore: 0,
+        emaWeight: 0,
       };
     });
 
